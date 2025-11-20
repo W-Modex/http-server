@@ -1,3 +1,4 @@
+#include "network.h"
 #include <asm-generic/socket.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,44 +11,7 @@
 #include <arpa/inet.h>
 
 int main(int argc, char** argv) {
-    struct addrinfo hints, *res, *p;
-    int listener, yes=1;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
-    if (getaddrinfo(NULL, "2323", &hints, &res) != 0) {
-        perror("getaddrinfo");
-        exit(EXIT_FAILURE);
-    }
-    for (p = res; p != NULL; p = p->ai_next) {
-        if ((listener = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-            perror("socket");
-            continue;
-        }
-        if (setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
-            close(listener);
-            perror("setsockopt");
-            exit(1);
-        }
-        if (bind(listener, p->ai_addr , p->ai_addrlen) == -1) {
-            close(listener);
-            perror("bind");
-            continue;
-        }
-        break;
-    }
-    freeaddrinfo(res);
-
-    if (p == NULL) {
-        perror("server: failed to bind\n");
-        exit(1);
-    }
-
-    if (listen(listener, 5) == -1) {
-        perror("failed to listen");
-        exit(1);
-    }
+    int listener = get_listener_fd("2323");
 
     printf("server: waiting for connections...\n");
 
