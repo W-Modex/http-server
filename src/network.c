@@ -1,4 +1,4 @@
-#include "network.h"
+#include "../include/network.h"
 #include <asm-generic/socket.h>
 #include <netdb.h>
 #include <stdio.h>

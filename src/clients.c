@@ -1,5 +1,5 @@
-#include "clients.h"
-#include "parser.h"
+#include "../include/clients.h"
+#include "../include/parser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
