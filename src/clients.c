@@ -61,7 +61,7 @@ void handle_client(struct pollfd **pfds, int client_fd, int listener, int* fdcou
 
     buf[bytes_recv] = '\0';
 
-    handle_request(buf, client_fd);
+    parse_request(buf);
 }
 
 void close_connection(struct pollfd **pfds, int client_fd, int *fdcount) {
