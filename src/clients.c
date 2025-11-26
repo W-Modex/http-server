@@ -1,8 +1,15 @@
 #include "../include/clients.h"
 #include "../include/parser.h"
+#include "network.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+const char* req_msg =
+    "HTTP/1.1 200 OK\r\n"
+    "Content-Type: text/html\r\n"
+    "\r\n"
+    "<!DOCTYPE html><html><body><h1>meow<h1/><body/><html/>";
 
 void process_connections(struct pollfd **pfds, int listener, int *fdcount, int *fdsize) {
     for (int i = 0; i < *fdcount; i++) {
@@ -61,7 +68,10 @@ void handle_client(struct pollfd **pfds, int client_fd, int listener, int* fdcou
 
     buf[bytes_recv] = '\0';
 
-    parse_request(buf);
+    http_request* req = parse_request(buf, client_fd);
+    if (strcmp(req->method, "GET") == 0) {
+        send_message(client_fd, req_msg, strlen(req_msg));
+    }
 }
 
 void close_connection(struct pollfd **pfds, int client_fd, int *fdcount) {
