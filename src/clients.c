@@ -1,5 +1,5 @@
 #include "../include/clients.h"
-#include "../include/parser.h"
+#include "../include/responder.h"
 #include "network.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,8 +53,8 @@ void add_connection(struct pollfd **pfds, int listener, int *fdcount, int *fdsiz
 }
 
 void handle_client(struct pollfd **pfds, int client_fd, int listener, int* fdcount) {
-    char buf[1024];
-    int bytes_recv = recv_message(client_fd, buf, 1023);
+    char buf[5000];
+    int bytes_recv = recv_message(client_fd, buf, 4999);
 
     if (bytes_recv < 0) {
         perror("failed to recv message");
@@ -67,11 +67,8 @@ void handle_client(struct pollfd **pfds, int client_fd, int listener, int* fdcou
     }
 
     buf[bytes_recv] = '\0';
-
-    http_request* req = parse_request(buf, client_fd);
-    if (strcmp(req->method, "GET") == 0) {
-        send_message(client_fd, req_msg, strlen(req_msg));
-    }
+    
+    handle_response(buf, client_fd);
 }
 
 void close_connection(struct pollfd **pfds, int client_fd, int *fdcount) {
