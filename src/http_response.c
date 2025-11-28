@@ -1,5 +1,6 @@
-#include "../include/responder.h"
+#include "../include/http_response.h"
 #include "network.h"
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,24 +19,11 @@ void HTTP_GET(http_request *req, int client_fd) {
     snprintf(filename, sizeof(filename), "../static%sindex.html", req->path);
 
     printf("filename: %s\n", filename);
+    
+    char* buf = file_to_buffer(filename);
+    char* res = malloc(strlen(buf) + 200);
 
-    FILE* f = fopen(filename, "r");
-    if (!f) {
-        printf("path does not exist");
-        return;
-    }
-
-    fseek(f, 0, SEEK_END);
-    long file_size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    char* buf = malloc(file_size + 1);
-    fread(buf, 1, file_size, f);
-    buf[file_size] = '\0';
-    fclose(f);
-
-    char* res = malloc(file_size + 200);
-    snprintf(res, file_size + 200,
+    snprintf(res, strlen(buf) + 200,
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/html\r\n\r\n"
         "%s", buf);

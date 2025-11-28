@@ -1,7 +1,6 @@
 #ifndef CLIENTS_H
 #define CLIENTS_H
 
-#include <stdlib.h>
 #include <sys/poll.h>
 #include "network.h"
 

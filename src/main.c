@@ -1,5 +1,8 @@
 #include "../include/clients.h"
+#include "../include/worker.h"
 #include <asm-generic/socket.h>
+#include <pthread.h>
+#include <bits/pthreadtypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,6 +11,8 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+
+pthread_t workers[16];
 
 int main(int argc, char** argv) {
     int listener = get_listener_fd("2323");
@@ -26,6 +31,12 @@ int main(int argc, char** argv) {
     fdcount++;
 
     printf("server: waiting for connections...\n");
+
+    
+
+    for (int i = 0; i < 16; i++) {
+        pthread_create(&(workers[i]), NULL, worker_init(), NULL);
+    }
     
     while (1) {
         int poll_count = poll(pfds, fdcount, -1);

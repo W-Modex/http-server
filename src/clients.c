@@ -1,15 +1,9 @@
 #include "../include/clients.h"
-#include "../include/responder.h"
+#include "../include/http_response.h"
 #include "network.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-const char* req_msg =
-    "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/html\r\n"
-    "\r\n"
-    "<!DOCTYPE html><html><body><h1>meow<h1/><body/><html/>";
 
 void process_connections(struct pollfd **pfds, int listener, int *fdcount, int *fdsize) {
     for (int i = 0; i < *fdcount; i++) {

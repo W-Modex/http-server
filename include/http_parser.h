@@ -1,8 +1,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#define MAX_HEADER 50
-#define MAX_LINE 1024
+#include "utils.h"
 
 typedef struct {
     char *name;
@@ -10,10 +9,10 @@ typedef struct {
 } Header;
 
 typedef struct {
-    char method[16];
-    char path[256];
-    char version[16];
-    Header headers[MAX_HEADER];
+    char method[MAX_METHOD_LEN];
+    char path[MAX_PATH_LEN];
+    char version[MAX_METHOD_LEN];
+    Header headers[MAX_HEADER_COUNT];
     int header_count;
 } http_request;
 

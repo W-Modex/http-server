@@ -1,17 +1,8 @@
-#include "../include/parser.h"
+#include "../include/http_parser.h"
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-char* trim(char *str) {
-    while (*str == ' ' || *str == '\t') str++;
-    char *end = str + strlen(str) - 1;
-    while (end > str && (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n')) {
-        *end = '\0';
-        end--;
-    }
-    return str;
-}
 
 http_request* parse_request(char *msg, int client_fd) {
     if (!msg) return NULL;
@@ -39,7 +30,7 @@ http_request* parse_request(char *msg, int client_fd) {
     req->header_count = 0;
 
     while ((line = strtok_r(NULL, "\r\n", &saveptr)) != NULL) {
-        line = trim(line);
+        str_trim(line);
         if (strlen(line) == 0) break;
         if (!strchr(line, ':')) break;          
         if (parse_header(line, req) != 0) break;
@@ -77,13 +68,15 @@ int parse_startline(char *msg, http_request* req) {
 
 int parse_header(char* line, http_request* req) {
     if (!line || !req) return -1;
-    if (req->header_count >= MAX_HEADER) return -1;
+    if (req->header_count >= MAX_HEADER_COUNT) return -1;
 
     char* colon = strchr(line, ':');
     if (!colon) return -1;
     *colon = '\0';
-    req->headers[req->header_count].name = strdup(trim(line));
-    req->headers[req->header_count].value = strdup(trim(colon + 1));
+    str_trim(line);
+    str_trim(colon + 1);
+    req->headers[req->header_count].name = strdup(line);
+    req->headers[req->header_count].value = strdup(colon+1);
     if (!req->headers[req->header_count].name || !req->headers[req->header_count].value) {
         free(req->headers[req->header_count].name);
         free(req->headers[req->header_count].value);
