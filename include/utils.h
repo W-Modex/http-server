@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MAX_CLIENTS        100
 #define MAX_PATH_LEN      512
 #define MAX_METHOD_LEN    16
 #define MAX_HEADER_COUNT  100

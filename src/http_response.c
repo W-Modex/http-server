@@ -5,12 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-void handle_response(char *msg, int client_fd) {
-    http_request* req = parse_request(msg, client_fd);
+void handle_response(job_t* j) {
+    http_request* req = parse_request(j->data, j->fd);
     if (strcmp(req->method, "GET") == 0) {
-        HTTP_GET(req, client_fd);
+        HTTP_GET(req, j->fd);
     } else if (strcmp(req->method, "HEAD") == 0) {
-        HTTP_HEAD(req, client_fd);
+        HTTP_HEAD(req, j->fd);
     }
 }
 
@@ -27,8 +27,7 @@ void HTTP_GET(http_request *req, int client_fd) {
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/html\r\n\r\n"
         "%s", buf);
-
-    send_message(client_fd, res, strlen(res));
+    
 
     free(buf);
     free(res);

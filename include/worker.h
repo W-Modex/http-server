@@ -16,6 +16,9 @@ typedef struct job_queue{
     pthread_cond_t cond;
 } job_queue_t;
 
-void* worker_init();
+void q_push(job_queue_t* q, job_t* j);
+job_t* q_pop(job_queue_t* q);
+
+void* worker_init(void* arg);
 
 #endif

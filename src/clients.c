@@ -1,17 +1,21 @@
 #include "../include/clients.h"
-#include "../include/http_response.h"
 #include "network.h"
+#include "utils.h"
+#include "worker.h"
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-void process_connections(struct pollfd **pfds, int listener, int *fdcount, int *fdsize) {
+void process_connections(struct pollfd **pfds, job_queue_t* q, int listener, int *fdcount, int *fdsize) {
     for (int i = 0; i < *fdcount; i++) {
-        if ((*pfds)[i].revents & (POLLIN | POLLHUP)) {
+        if ((*pfds)[i].revents & (POLLIN | POLLHUP | POLLOUT)) {
             if ((*pfds)[i].fd == listener) {
                 add_connection(pfds, listener, fdcount, fdsize);
             } else {
-                handle_client(pfds, (*pfds)[i].fd, listener, fdcount);
+                if ((*pfds)[i].revents & POLLOUT) 
+                handle_client_send(pfds, q, (*pfds)[i].fd, listener, fdcount);
+                else handle_client_read(pfds, q, (*pfds)[i].fd, listener, fdcount);
             }
         }
     }
@@ -46,9 +50,9 @@ void add_connection(struct pollfd **pfds, int listener, int *fdcount, int *fdsiz
     (*fdcount)++;
 }
 
-void handle_client(struct pollfd **pfds, int client_fd, int listener, int* fdcount) {
-    char buf[5000];
-    int bytes_recv = recv_message(client_fd, buf, 4999);
+void handle_client_read(struct pollfd **pfds, job_queue_t* q, int client_fd, int listener, int* fdcount) {
+    char buf[MAX_REQUEST_SIZE];
+    int bytes_recv = recv_message(client_fd, buf, MAX_REQUEST_SIZE - 1);
 
     if (bytes_recv < 0) {
         perror("failed to recv message");
@@ -61,8 +65,18 @@ void handle_client(struct pollfd **pfds, int client_fd, int listener, int* fdcou
     }
 
     buf[bytes_recv] = '\0';
-    
-    handle_response(buf, client_fd);
+    job_t* j = malloc(sizeof(job_t));
+    j->fd = client_fd;
+    j->data = strdup(buf);
+
+    pthread_mutex_lock(&q->lock);
+    q_push(q, j);
+    pthread_cond_signal(&q->cond);
+    pthread_mutex_unlock(&q->lock);
+}
+
+void handle_client_send(struct pollfd **pfds, job_queue_t *q, int client_fd, int listener, int *fdcount) {
+
 }
 
 void close_connection(struct pollfd **pfds, int client_fd, int *fdcount) {
