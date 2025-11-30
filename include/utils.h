@@ -6,14 +6,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
-#define MAX_CLIENTS        100
+#define INITIAL_FD_SIZE   16
 #define MAX_PATH_LEN      512
 #define MAX_METHOD_LEN    16
 #define MAX_HEADER_COUNT  100
 #define MAX_REQUEST_SIZE  8192
 #define MAX_RESPONSE_SIZE 16384
 #define MAX_BUFFER        4096
+
+static inline void DIE(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    fprintf(stderr, "Fatal error: ");
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, "\n");
+
+    va_end(args);
+    exit(EXIT_FAILURE);
+}
 
 static inline void str_copy(char *dst, const char *src, size_t size) {
     if (!dst || !src || size == 0) return;
