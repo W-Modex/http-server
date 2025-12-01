@@ -1,20 +1,19 @@
 #include "../include/http_response.h"
-#include "network.h"
 #include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-void handle_response(job_t* j) {
+char* handle_response(job_t* j) {
     http_request* req = parse_request(j->data, j->fd);
     if (strcmp(req->method, "GET") == 0) {
-        HTTP_GET(req, j->fd);
+        return HTTP_GET(req, j->fd);
     } else if (strcmp(req->method, "HEAD") == 0) {
-        HTTP_HEAD(req, j->fd);
+        return HTTP_HEAD(req, j->fd);
     }
 }
 
-void HTTP_GET(http_request *req, int client_fd) {
+char* HTTP_GET(http_request *req, int client_fd) {
     char filename[512];
     snprintf(filename, sizeof(filename), "../static%sindex.html", req->path);
 
@@ -28,12 +27,11 @@ void HTTP_GET(http_request *req, int client_fd) {
         "Content-Type: text/html\r\n\r\n"
         "%s", buf);
     
-
     free(buf);
-    free(res);
+    return res;
 }
 
 
-void HTTP_HEAD(http_request *req, int client_fd) {
+char* HTTP_HEAD(http_request *req, int client_fd) {
 
 }

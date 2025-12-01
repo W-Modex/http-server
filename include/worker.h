@@ -32,6 +32,8 @@ typedef struct Cxt {
     pthread_mutex_t pfds_lock;
     job_queue_t* q;
     client_t* clients;
+    int fdcount;
+    int fdsize;
 } cxt_t;
 
 void q_push(job_queue_t* q, job_t* j);

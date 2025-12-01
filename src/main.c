@@ -21,11 +21,12 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-    int fdsize = INITIAL_FD_SIZE;
-    int fdcount = 0;
 
     cxt_t* worker_cxt = malloc(sizeof(cxt_t));
     if (!worker_cxt) DIE("malloc worker_cxt");
+
+    worker_cxt->fdcount = 0;
+    worker_cxt->fdsize = INITIAL_FD_SIZE;
 
     job_queue_t* queue = malloc(sizeof(job_queue_t));
     if (!queue) DIE("malloc queue");
@@ -34,14 +35,14 @@ int main(int argc, char** argv) {
     if (pthread_mutex_init(&queue->lock, NULL) != 0) DIE("mutex init");
     if (pthread_cond_init(&queue->cond, NULL) != 0) DIE("cond init");
 
-    struct pollfd *pfds = calloc(fdsize, sizeof(struct pollfd));
+    struct pollfd *pfds = calloc(worker_cxt->fdsize, sizeof(struct pollfd));
     if (!pfds) DIE("calloc pfds");
-    client_t *clients = calloc(fdsize, sizeof(client_t));
+    client_t *clients = calloc(worker_cxt->fdsize, sizeof(client_t));
     if (!clients) DIE("calloc clients");
 
     pfds[0].fd = listener;
     pfds[0].events = POLLIN;
-    fdcount++;
+    worker_cxt->fdcount++;
 
     worker_cxt->pfds = pfds;
     if (pthread_mutex_init(&worker_cxt->pfds_lock, NULL) != 0) DIE("pfds_lock init");
@@ -61,13 +62,13 @@ int main(int argc, char** argv) {
     }
 
     while (1) {
-        int poll_count = poll(worker_cxt->pfds, fdcount, -1);
+        int poll_count = poll(worker_cxt->pfds, worker_cxt->fdcount, -1);
         if (poll_count == -1) {
             perror("poll");
             exit(1);
         }
 
-        process_connections(worker_cxt, listener, &fdcount, &fdsize);
+        process_connections(worker_cxt, listener);
     }
 
     free(pfds);
