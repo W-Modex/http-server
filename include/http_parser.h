@@ -18,6 +18,6 @@ typedef struct {
 
 int parse_startline(char* line, http_request* req);
 int parse_header(char* line, http_request* req);
-http_request* parse_request(char* msg, int client_fd);
+http_request* parse_request(char* msg);
 
 #endif

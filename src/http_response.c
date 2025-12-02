@@ -5,7 +5,7 @@
 #include <string.h>
 
 char* handle_response(job_t* j) {
-    http_request* req = parse_request(j->data, j->fd);
+    http_request* req = parse_request(j->data);
     if (strcmp(req->method, "GET") == 0) {
         return HTTP_GET(req, j->fd);
     } else if (strcmp(req->method, "HEAD") == 0) {

@@ -1,10 +1,9 @@
 #include "../include/http_parser.h"
 #include "utils.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-http_request* parse_request(char *msg, int client_fd) {
+http_request* parse_request(char *msg) {
     if (!msg) return NULL;
 
     http_request* req = calloc(1, sizeof(http_request));
@@ -35,12 +34,6 @@ http_request* parse_request(char *msg, int client_fd) {
         if (!strchr(line, ':')) break;          
         if (parse_header(line, req) != 0) break;
     }
-
-    printf("request method is: %s\n", req->method);
-    printf("request path is: %s\n", req->path);
-    printf("request version is: %s\n", req->version);
-    for (int i = 0; i < req->header_count; i++)
-        printf("header%d: %s:%s\n", i + 1, req->headers[i].name, req->headers[i].value);
 
     free(data);
     return req;

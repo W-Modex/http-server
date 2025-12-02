@@ -30,17 +30,25 @@ void* worker_init(void* arg) {
             pthread_cond_wait(&cxt->q->cond, &cxt->q->lock);
         job_t* j = q_pop(cxt->q);
         pthread_mutex_unlock(&cxt->q->lock);
+        if (!j) continue;
         char* res = handle_response(j);
+        pthread_mutex_lock(&cxt->pfds_lock);
+        int found = 0;
         for (int i = 0; i < cxt->fdcount; i++) {
             if (cxt->clients[i].fd == j->fd) {
-                pthread_mutex_lock(&cxt->pfds_lock);
+                if (cxt->clients[i].write_buf)
+                    free(cxt->clients[i].write_buf);
                 cxt->clients[i].write_buf = res;
                 cxt->clients[i].write_len = strlen(res);
+                cxt->clients[i].write_send = 0;
                 cxt->pfds[i].events |= POLLOUT;
-                pthread_mutex_unlock(&cxt->pfds_lock);
+                cxt->pfds[i].events &= ~POLLIN;
+                found = 1;
                 break;
             }
         }
+        if (!found) free(res);
+        pthread_mutex_unlock(&cxt->pfds_lock);
         free(j->data);
         free(j);
     }
