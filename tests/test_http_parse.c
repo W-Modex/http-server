@@ -8,8 +8,8 @@
     }
 
 int main() {
-    char* msg = "GET / HTTP 1.1\r\nContent-Type: text/html\r\n\r\n";
-    http_request* req = parse_request(msg);
+    char* msg = "GET / HTTP/1.1\r\nContent-Type: text/html\r\n\r\n";
+    http_request_t* req = parse_http_request(msg);
     ASSERT_TRUE(req != NULL);
     ASSERT_TRUE(strcmp(req->method, "GET") == 0);
     ASSERT_TRUE(strcmp(req->path, "/") == 0);

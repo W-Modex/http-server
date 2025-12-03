@@ -6,18 +6,20 @@
 typedef struct {
     char *name;
     char *value;
-} Header;
+} header_t;
 
 typedef struct {
     char method[MAX_METHOD_LEN];
     char path[MAX_PATH_LEN];
     char version[MAX_METHOD_LEN];
-    Header headers[MAX_HEADER_COUNT];
+    header_t headers[MAX_HEADER_COUNT];
     int header_count;
-} http_request;
+     char *body;      
+    size_t body_len;
+} http_request_t;
 
-int parse_startline(char* line, http_request* req);
-int parse_header(char* line, http_request* req);
-http_request* parse_request(char* msg);
+http_request_t* parse_http_request(const char *raw);
+void free_http_request(http_request_t *req);
+const char* http_request_get_header(const http_request_t *req, const char *name);
 
 #endif

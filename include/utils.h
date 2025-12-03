@@ -1,6 +1,7 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#include <ctype.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -34,15 +35,28 @@ static inline void str_copy(char *dst, const char *src, size_t size) {
     dst[size - 1] = '\0';
 }
 
-static inline void str_trim(char *str) {
-    while (*str == ' ' || *str == '\t') str++;
-    char *end = str + strlen(str) - 1;
-    while (end > str && (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n')) {
-        *end = '\0';
-        end--;
+static inline void trim_inplace(char *s) {
+    if (!s) return;
+    /* trim leading */
+    char *p = s;
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (p != s) memmove(s, p, strlen(p) + 1);
+
+    /* trim trailing */
+    size_t len = strlen(s);
+    while (len > 0 && isspace((unsigned char)s[len - 1])) {
+        s[len - 1] = '\0';
+        len--;
     }
 }
 
+static int str_case_eq(const char *a, const char *b) {
+    while (*a && *b) {
+        if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) return 0;
+        a++; b++;
+    }
+    return *a == '\0' && *b == '\0';
+}
 
 static inline void str_append(char *dst, const char *src, size_t size) {
     if (!dst || !src) return;
