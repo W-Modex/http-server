@@ -67,9 +67,22 @@ static inline void clear_buffer(char *buf, size_t size) {
     memset(buf, 0, size);
 }
 
+static inline int endswith(char* str, char* t) {
+    int m = strlen(str);
+    int n = strlen(t);
+    if (strcmp(str+m-n, t) == 0) return 1;
+    else return 0;
+}
+
+
+
 static inline char* file_to_buffer(const char *filename) {
     FILE *f = fopen(filename, "rb");
-    if (!f) return NULL;
+    if (!f) {
+        perror("fopen");
+        printf("Tried to open: %s\n", filename);
+        return NULL;
+    }
 
     fseek(f, 0, SEEK_END);
     long size = ftell(f);

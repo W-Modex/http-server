@@ -21,7 +21,6 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
 
-
     cxt_t* worker_cxt = malloc(sizeof(cxt_t));
     if (!worker_cxt) DIE("malloc worker_cxt");
 

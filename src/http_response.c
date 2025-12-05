@@ -43,6 +43,28 @@ char* build_response(http_response_t *res) {
     return final;
 }
 
+ char* mime_type(char *filename) {
+    if (!filename) return "application/octet-stream";
+
+    if (endswith(filename, ".html")) return "text/html";
+    if (endswith(filename, ".css"))  return "text/css";
+    if (endswith(filename, ".js"))   return "application/javascript";
+    if (endswith(filename, ".png"))  return "image/png";
+    if (endswith(filename, ".jpg"))  return "image/jpeg";
+    return "application/octet-stream";
+}
+
+char* resolve_path(char* path) {
+    if (strcmp(path, "/") == 0) return strdup("../static/index.html"); 
+    if (strstr(path, "..")) return NULL;
+    char s[512];
+    if (!strchr(path, '.')) 
+        sprintf(s, "../static%s/index.html", path);
+    else 
+        sprintf(s, "../static%s", path);    
+    
+    return strdup(s);
+}
 
 char* handle_response(job_t *j) {
     http_request_t* req = parse_http_request(j->data);
@@ -58,13 +80,16 @@ char* handle_response(job_t *j) {
     return build_simple_error(405, "Method Not Allowed");
 }
 
-
 char* HTTP_GET(http_request_t *req) {
+    char* filename = resolve_path(req->path);
+    if (!filename)
+        return build_simple_error(400, "Bad Request");
 
-    char filename[512];
-    snprintf(filename, sizeof(filename), "../static%sindex.html", req->path);
+    char* mime = mime_type(filename);
+    printf("mime is: %s, filename is: %s\n", mime, filename);
 
     char* buf = file_to_buffer(filename);
+    printf("buf: %s\n", buf);
     if (!buf) {
         return build_simple_error(404, "Not Found");
     }
@@ -76,7 +101,7 @@ char* HTTP_GET(http_request_t *req) {
     };
 
     strcpy(res.status_text, "OK");
-    strcpy(res.content_type, "text/html");
+    strcpy(res.content_type, mime);
 
     char *final = build_response(&res);
 
