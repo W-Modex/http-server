@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     }
 
     while (1) {
-        int poll_count = poll(worker_cxt->pfds, worker_cxt->fdcount, -1);
+        int poll_count = poll(worker_cxt->pfds, worker_cxt->fdcount, 100);
         if (poll_count == -1) {
             perror("poll");
             exit(1);

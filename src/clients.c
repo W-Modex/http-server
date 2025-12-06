@@ -1,4 +1,5 @@
 #include "../include/clients.h"
+#include <fcntl.h>
 #include "network.h"
 #include "utils.h"
 #include "worker.h"
@@ -13,7 +14,6 @@ void process_connections(cxt_t* cxt, int listener) {
     struct pollfd *local_pfds = NULL;
     int local_fdcount = 0;
 
-    /* snapshot pfds & fdcount under lock */
     pthread_mutex_lock(&cxt->pfds_lock);
     local_fdcount = cxt->fdcount;
     if (local_fdcount > 0) {
@@ -51,6 +51,8 @@ void add_connection(cxt_t* cxt, int listener) {
         perror("failed to accept client");
         return;
     }
+    int flags = fcntl(client_fd, F_GETFL, 0);
+    fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
 
     pthread_mutex_lock(&cxt->pfds_lock);
 
@@ -134,13 +136,10 @@ void handle_client_send(cxt_t* cxt, int client_fd, int listener) {
 
     if (sent <= 0) {
         if (sent == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
-            /* try later */
             pthread_mutex_unlock(&cxt->pfds_lock);
             return;
         }
-        /* fatal: free and close under lock */
         if (c->write_buf) { free(c->write_buf); c->write_buf = NULL; }
-        /* swap & shrink */
         cxt->pfds[idx] = cxt->pfds[cxt->fdcount - 1];
         cxt->clients[idx] = cxt->clients[cxt->fdcount - 1];
         cxt->fdcount--;

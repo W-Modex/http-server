@@ -25,7 +25,6 @@ char* build_response(http_response_t *res) {
         "HTTP/1.1 %d %s\r\n"
         "Content-Type: %s\r\n"
         "Content-Length: %zu\r\n"
-        "Connection: close\r\n"
         "\r\n",
         res->status_code,
         res->status_text,
@@ -43,7 +42,7 @@ char* build_response(http_response_t *res) {
     return final;
 }
 
- char* mime_type(char *filename) {
+char* mime_type(char *filename) {
     if (!filename) return "application/octet-stream";
 
     if (endswith(filename, ".html")) return "text/html";
@@ -55,6 +54,7 @@ char* build_response(http_response_t *res) {
 }
 
 char* resolve_path(char* path) {
+    printf("request path is: %s\n", path);
     if (strcmp(path, "/") == 0) return strdup("../static/index.html"); 
     if (strstr(path, "..")) return NULL;
     char s[512];
@@ -72,9 +72,6 @@ char* handle_response(job_t *j) {
 
     if (strcmp(req->method, "GET") == 0) {
         return HTTP_GET(req);
-    }
-    else if (strcmp(req->method, "HEAD") == 0) {
-        return HTTP_HEAD(req);
     }
 
     return build_simple_error(405, "Method Not Allowed");
@@ -107,29 +104,4 @@ char* HTTP_GET(http_request_t *req) {
 
     free(buf);
     return final;
-}
-
-
-
-char* HTTP_HEAD(http_request_t *req) {
-
-    char filename[512];
-    snprintf(filename, sizeof(filename), "../static%sindex.html", req->path);
-
-    char* buf = file_to_buffer(filename);
-    if (!buf) {
-        return build_simple_error(404, "Not Found");
-    }
-
-    http_response_t res = {
-        .status_code = 200,
-        .body = NULL,
-        .body_length = strlen(buf),
-    };
-
-    strcpy(res.status_text, "OK");
-    strcpy(res.content_type, "text/html");
-
-    free(buf);
-    return build_response(&res);
 }

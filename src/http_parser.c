@@ -14,7 +14,6 @@ static void free_request_partial(http_request_t *req) {
     free(req);
 }
 
-/* Public free function */
 void free_http_request(http_request_t *req) {
     if (!req) return;
     for (int i = 0; i < req->header_count; ++i) {
@@ -66,47 +65,38 @@ static int parse_start_line(char *line, http_request_t *req) {
 http_request_t *parse_http_request(const char *raw) {
     if (!raw) return NULL;
 
-    /* Make a modifiable copy of the message */
     char *buf = strdup(raw);
     if (!buf) return NULL;
 
     http_request_t *req = calloc(1, sizeof(http_request_t));
     if (!req) { free(buf); return NULL; }
 
-    /* Find header/body split first: prefer "\r\n\r\n", fallback to "\n\n" */
     char *body_start = strstr(buf, "\r\n\r\n");
     size_t header_end_offset = 0;
     if (body_start) {
-        header_end_offset = (size_t)(body_start - buf) + 4; /* skip the "\r\n\r\n" */
+        header_end_offset = (size_t)(body_start - buf) + 4; 
     } else {
         body_start = strstr(buf, "\n\n");
         if (body_start) header_end_offset = (size_t)(body_start - buf) + 2;
     }
 
-    /* We'll tokenize header lines from buf (which is NUL-terminated) */
     char *saveptr = NULL;
-    char *line = strtok_r(buf, "\r\n", &saveptr); /* first line = start-line */
+    char *line = strtok_r(buf, "\r\n", &saveptr); 
     if (!line) { free_request_partial(req); free(buf); return NULL; }
 
-    /* parse start line using its own local strtok_r saveptr */
     if (parse_start_line(line, req) != 0) { free_request_partial(req); free(buf); return NULL; }
 
-    /* parse headers */
     req->header_count = 0;
     while ((line = strtok_r(NULL, "\r\n", &saveptr)) != NULL) {
-        /* stop at empty line (end of headers) */
         if (line[0] == '\0') break;
 
-        /* find colon */
         char *colon = strchr(line, ':');
         if (!colon) {
-            /* malformed header line -> abort and cleanup */
             free_request_partial(req);
             free(buf);
             return NULL;
         }
 
-        /* split name/value (overwrite colon with NUL) */
         *colon = '\0';
         char *name = line;
         char *value = colon + 1;
@@ -129,7 +119,6 @@ http_request_t *parse_http_request(const char *raw) {
         req->header_count++;
     }
 
-    /* If there is a body, parse Content-Length header and copy body bytes */
     req->body = NULL;
     req->body_len = 0;
     const char *cl_hdr = http_request_get_header(req, "Content-Length");
@@ -138,7 +127,6 @@ http_request_t *parse_http_request(const char *raw) {
         long cl = strtol(cl_hdr, &endptr, 10);
         if (endptr == cl_hdr || cl < 0) { free_request_partial(req); free(buf); return NULL; }
 
-        /* if we didn't find header/body delimiter earlier, try to find it now */
         if (header_end_offset == 0) {
             char *p = strstr(buf, "\r\n\r\n");
             if (p) header_end_offset = (size_t)(p - buf) + 4;
@@ -146,14 +134,11 @@ http_request_t *parse_http_request(const char *raw) {
                 p = strstr(buf, "\n\n");
                 if (p) header_end_offset = (size_t)(p - buf) + 2;
             }
-            /* if still zero, malformed request (no header/body separation) */
             if (header_end_offset == 0) { free_request_partial(req); free(buf); return NULL; }
         }
 
-        /* ensure body bytes are present in the buffer */
-        size_t buf_len = strlen(buf); /* since we used strdup, strlen works */
+        size_t buf_len = strlen(buf);
         if (header_end_offset + (size_t)cl > buf_len) {
-            /* Incomplete body in given buffer -> treat as error here (caller can pass full request). */
             free_request_partial(req);
             free(buf);
             return NULL;
@@ -163,7 +148,7 @@ http_request_t *parse_http_request(const char *raw) {
         req->body = malloc(req->body_len + 1);
         if (!req->body) { free_request_partial(req); free(buf); return NULL; }
         memcpy(req->body, buf + header_end_offset, req->body_len);
-        req->body[req->body_len] = '\0'; /* NUL-terminate for convenience (may contain binary data) */
+        req->body[req->body_len] = '\0';
     }
 
     free(buf);

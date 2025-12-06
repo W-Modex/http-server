@@ -1,87 +1,118 @@
+/* network.c
+ * IPv4 + IPv6 capable network helpers
+ */
+
 #include "../include/network.h"
-#include <asm-generic/socket.h>
-#include <netdb.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <sys/types.h>
 #include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 #include <unistd.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 int get_listener_fd(char* port) {
     struct addrinfo hints, *res, *p;
+    int rv;
+    int listen_fd = -1;
     int yes = 1;
-    int socket_fd;
+
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
-    if ((getaddrinfo(NULL, port, &hints, &res)) != 0) {
-        perror("server: getaddrinfo");
-        exit(1);
+
+    rv = getaddrinfo(NULL, port, &hints, &res);
+    if (rv != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        return -1;
     }
 
     for (p = res; p != NULL; p = p->ai_next) {
-        if ((socket_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) {
-            perror("socket");
+        int sfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (sfd < 0) {
             continue;
         }
-        if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
-            perror("setsockopt");
-            return -1;
+
+        if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
+            perror("setsockopt(SO_REUSEADDR)");
         }
-        if (bind(socket_fd, p->ai_addr, p->ai_addrlen) == -1) {
-            perror("bind");
-            close(socket_fd);
+
+        #ifdef SO_REUSEPORT
+        if (setsockopt(sfd, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(yes)) < 0) {
+            /* ignore */
+        }
+        #endif
+
+        if (p->ai_family == AF_INET6) {
+            int off = 0;
+            if (setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, &off, sizeof(off)) < 0) {
+                /* ignore */
+            }
+        }
+
+        if (bind(sfd, p->ai_addr, p->ai_addrlen) == 0) {
+            if (listen(sfd, SOMAXCONN) == 0) {
+                listen_fd = sfd;
+                break;
+            } else {
+                perror("listen");
+                close(sfd);
+                continue;
+            }
+        } else {
+            close(sfd);
             continue;
         }
-        break;
     }
+
     freeaddrinfo(res);
-    if (p == NULL) {
-        close(socket_fd);
-        return -1;
-    }
-    if (listen(socket_fd, 5) == -1) {
-        close(socket_fd);
+
+    if (listen_fd == -1) {
+        fprintf(stderr, "Failed to bind/listen on port %s\n", port);
         return -1;
     }
 
-    return socket_fd;
+    return listen_fd;
 }
 
 int connect_to(char *ip, char *port) {
     struct addrinfo hints, *res, *p;
-    int socket_fd;
-    int status;
+    int rv;
+    int sockfd = -1;
 
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((status = getaddrinfo(ip, port, &hints, &res)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
+    rv = getaddrinfo(ip, port, &hints, &res);
+    if (rv != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return -1;
     }
 
     for (p = res; p != NULL; p = p->ai_next) {
-        socket_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (socket_fd == -1)
-            continue;
+        int sfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+        if (sfd < 0) continue;
 
-        if (connect(socket_fd, p->ai_addr, p->ai_addrlen) == 0)
+        if (connect(sfd, p->ai_addr, p->ai_addrlen) == 0) {
+            sockfd = sfd;
             break;
+        }
 
-        close(socket_fd);
+        close(sfd);
     }
 
     freeaddrinfo(res);
 
-    if (p == NULL) {
+    if (sockfd == -1) {
         perror("connect");
         return -1;
     }
 
-    return socket_fd;
+    return sockfd;
 }
 
 int accept_client(int listener) {
@@ -90,23 +121,54 @@ int accept_client(int listener) {
     int client_fd;
 
     client_fd = accept(listener, (struct sockaddr*)&client_addr, &client_addr_size);
-
+    if (client_fd < 0) {
+        perror("accept");
+        return -1;
+    }
     return client_fd;
 }
 
-
 int send_message(int client_fd, const char *msg, int msg_size) {
-    int bytes_sent = send(client_fd, msg, msg_size, 0);
-    if (bytes_sent < 0) {
+    if (client_fd < 0 || msg == NULL || msg_size <= 0) return -1;
+
+    int total_sent = 0;
+    while (total_sent < msg_size) {
+        ssize_t n = send(client_fd, msg + total_sent, msg_size - total_sent, 0);
+        if (n > 0) {
+            total_sent += (int)n;
+            continue;
+        }
+        if (n == 0) {
+            return total_sent;
+        }
+        if (errno == EINTR) {
+            continue;
+        }
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return total_sent;
+        }
+        perror("send");
         return -1;
     }
-    return bytes_sent;
+    return total_sent;
 }
 
 int recv_message(int client_fd, char *buf, int buf_size) {
-    int bytes_recv = recv(client_fd, buf, buf_size, 0);
-    if (bytes_recv < 0) {
-        return -1;
+    if (client_fd < 0 || buf == NULL || buf_size <= 0) return -1;
+
+    ssize_t n;
+    while (1) {
+        n = recv(client_fd, buf, (size_t)buf_size, 0);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return -1; 
+            }
+            perror("recv");
+            return -1;
+        }
+        break;
     }
-    return bytes_recv;
+
+    return (int)n;
 }
