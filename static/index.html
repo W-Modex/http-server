@@ -1,12 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modex Web Server</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Home</title>
+    <link rel="stylesheet" href="index.css" />
 </head>
 <body>
-    <a href="./about">about</a>
-    <h1>brace for impact</h1>
+    <header>
+        <h1>Brace for impact</h1>
+        <nav>
+            <a href="/">Home</a>
+            <a href="/login">Login</a>
+            <a href="/chat">Chat</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="card">
+            <h2>About This Project</h2>
+            <p>
+                This is a custom HTTP server built from scratch — handling sockets, poll(),
+                concurrency, routing, and more. The goal is to understand full‑stack concepts
+                at a low level.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Features</h2>
+            <ul>
+                <li>Custom HTTP handling</li>
+                <li>POST/GET parsing</li>
+                <li>Authentication system</li>
+                <li>WebSockets integration (soon)</li>
+            </ul>
+        </section>
+
+        <!-- <section class="card">
+            <h2>Test a POST Request</h2>
+            <form action="/submit" method="POST">
+                <label>
+                    Your name:
+                    <input type="text" name="username" required />
+                </label>
+                <button type="submit">Send</button>
+            </form>
+        </section> -->
+    </main>
+
+    <footer>
+        <p>© 2025 Modex m9wd</p>
+    </footer>
 </body>
 </html>
