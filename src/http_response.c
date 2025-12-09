@@ -105,3 +105,32 @@ char* HTTP_GET(http_request_t *req) {
     free(buf);
     return final;
 }
+
+char* HTTP_HEAD(http_request_t *req) {
+    char* filename = resolve_path(req->path);
+    if (!filename)
+        return build_simple_error(400, "Bad Request");
+
+    char* mime = mime_type(filename);
+    printf("mime is: %s, filename is: %s\n", mime, filename);
+
+    char* buf = file_to_buffer(filename);
+    printf("buf: %s\n", buf);
+    if (!buf) {
+        return build_simple_error(404, "Not Found");
+    }
+
+    http_response_t res = {
+        .status_code = 200,
+        .body = "",
+        .body_length = 0,
+    };
+
+    strcpy(res.status_text, "OK");
+    strcpy(res.content_type, mime);
+
+    char *final = build_response(&res);
+
+    free(buf);
+    return final;
+}
