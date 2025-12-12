@@ -1,7 +1,3 @@
-/* network.c
- * IPv4 + IPv6 capable network helpers
- */
-
 #include "../include/network.h"
 #include <sys/types.h>
 #include <sys/socket.h>
