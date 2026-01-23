@@ -3,6 +3,7 @@
 #include <sys/poll.h>
 #include "../include/worker.h"
 #include "../include/http_response.h"
+#include "http_parser.h"
 
 void q_push(job_queue_t *q, job_t* j) {
     if (!q->tail) {
@@ -31,7 +32,8 @@ void* worker_init(void* arg) {
         job_t* j = q_pop(cxt->q);
         pthread_mutex_unlock(&cxt->q->lock);
         if (!j) continue;
-        char* res = handle_response(j);
+        http_request_t* req = parse_http_request(j->data);
+        char* res = handle_response(req);
         pthread_mutex_lock(&cxt->pfds_lock);
         int found = 0;
         for (int i = 0; i < cxt->fdcount; i++) {

@@ -71,35 +71,48 @@ http_request_t *parse_http_request(const char *raw) {
     http_request_t *req = calloc(1, sizeof(http_request_t));
     if (!req) { free(buf); return NULL; }
 
-    char *body_start = strstr(buf, "\r\n\r\n");
-    size_t header_end_offset = 0;
-    if (body_start) {
-        header_end_offset = (size_t)(body_start - buf) + 4; 
+    char *body_ptr = NULL;
+
+    char *sep = strstr(buf, "\r\n\r\n");
+    if (sep) {
+        body_ptr = sep + 4;
+        *sep = '\0';                 
     } else {
-        body_start = strstr(buf, "\n\n");
-        if (body_start) header_end_offset = (size_t)(body_start - buf) + 2;
+        sep = strstr(buf, "\n\n");
+        if (sep) {
+            body_ptr = sep + 2;
+            *sep = '\0';
+        }
     }
 
     char *saveptr = NULL;
-    char *line = strtok_r(buf, "\r\n", &saveptr); 
+    char *line = strtok_r(buf, "\r\n", &saveptr);
     if (!line) { free_request_partial(req); free(buf); return NULL; }
 
-    if (parse_start_line(line, req) != 0) { free_request_partial(req); free(buf); return NULL; }
+    if (parse_start_line(line, req) != 0) {
+        free_request_partial(req);
+        free(buf);
+        return NULL;
+    }
 
     req->header_count = 0;
+
     while ((line = strtok_r(NULL, "\r\n", &saveptr)) != NULL) {
+        
         if (line[0] == '\0') break;
 
         char *colon = strchr(line, ':');
         if (!colon) {
+            
             free_request_partial(req);
             free(buf);
             return NULL;
         }
 
         *colon = '\0';
-        char *name = line;
+        char *name  = line;
         char *value = colon + 1;
+
         trim_inplace(name);
         trim_inplace(value);
 
@@ -116,39 +129,46 @@ http_request_t *parse_http_request(const char *raw) {
             free(buf);
             return NULL;
         }
+
         req->header_count++;
     }
 
     req->body = NULL;
     req->body_len = 0;
+
     const char *cl_hdr = http_request_get_header(req, "Content-Length");
     if (cl_hdr) {
         char *endptr = NULL;
         long cl = strtol(cl_hdr, &endptr, 10);
-        if (endptr == cl_hdr || cl < 0) { free_request_partial(req); free(buf); return NULL; }
-
-        if (header_end_offset == 0) {
-            char *p = strstr(buf, "\r\n\r\n");
-            if (p) header_end_offset = (size_t)(p - buf) + 4;
-            else {
-                p = strstr(buf, "\n\n");
-                if (p) header_end_offset = (size_t)(p - buf) + 2;
-            }
-            if (header_end_offset == 0) { free_request_partial(req); free(buf); return NULL; }
-        }
-
-        size_t buf_len = strlen(buf);
-        if (header_end_offset + (size_t)cl > buf_len) {
+        if (endptr == cl_hdr || *endptr != '\0' || cl < 0) {
             free_request_partial(req);
             free(buf);
             return NULL;
         }
 
-        req->body_len = (size_t)cl;
+        if ((size_t)cl > 0) {
+            
+            size_t available = body_ptr ? strlen(body_ptr) : 0;
+            if ((size_t)cl > available) {
+                free_request_partial(req);
+                free(buf);
+                return NULL;
+            }
+
+            req->body_len = (size_t)cl;
+            req->body = malloc(req->body_len + 1);
+            if (!req->body) { free_request_partial(req); free(buf); return NULL; }
+
+            memcpy(req->body, body_ptr, req->body_len);
+            req->body[req->body_len] = '\0';
+        }
+    } else if (body_ptr && *body_ptr) {
+        /* Fallback: treat everything after blank line as body */
+        req->body_len = strlen(body_ptr);
         req->body = malloc(req->body_len + 1);
         if (!req->body) { free_request_partial(req); free(buf); return NULL; }
-        memcpy(req->body, buf + header_end_offset, req->body_len);
-        req->body[req->body_len] = '\0';
+
+        memcpy(req->body, body_ptr, req->body_len + 1); /* include '\0' */
     }
 
     free(buf);

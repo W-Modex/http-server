@@ -13,7 +13,7 @@
 #define MAX_PATH_LEN      512
 #define MAX_METHOD_LEN    16
 #define MAX_HEADER_COUNT  100
-#define MAX_REQUEST_SIZE  8192
+#define MAX_REQUEST_SIZE  16384
 #define MAX_RESPONSE_SIZE 16384
 #define MAX_BUFFER        4096
 

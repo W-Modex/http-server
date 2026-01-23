@@ -14,7 +14,6 @@ char* build_simple_error(int code, const char *text) {
 
     strncpy(res.status_text, text, sizeof(res.status_text));
     strcpy(res.content_type, "text/plain");
-
     return build_response(&res);
 }
 
@@ -31,13 +30,12 @@ char* build_response(http_response_t *res) {
         res->content_type,
         res->body_length
     );
-
     size_t total = strlen(header) + res->body_length;
     char *final = malloc(total + 1);
-
+    
     memcpy(final, header, strlen(header));
     memcpy(final + strlen(header), res->body, res->body_length);
-
+    
     final[total] = '\0';
     return final;
 }
@@ -66,14 +64,15 @@ char* resolve_path(char* path) {
     return strdup(s);
 }
 
-char* handle_response(job_t *j) {
-    http_request_t* req = parse_http_request(j->data);
+char* handle_response(http_request_t* req) {
     if (!req) return NULL;
 
-    if (strcmp(req->method, "GET") == 0) {
+    if (strcmp(req->method, "GET") == 0) 
         return HTTP_GET(req);
-    }
-
+    else if (strcmp(req->method, "HEAD") == 0)
+        return HTTP_HEAD(req);
+    else if (strcmp(req->method, "POST") == 0)
+        return HTTP_POST(req);
     return build_simple_error(405, "Method Not Allowed");
 }
 
@@ -86,7 +85,6 @@ char* HTTP_GET(http_request_t *req) {
     printf("mime is: %s, filename is: %s\n", mime, filename);
 
     char* buf = file_to_buffer(filename);
-    printf("buf: %s\n", buf);
     if (!buf) {
         return build_simple_error(404, "Not Found");
     }
@@ -96,13 +94,10 @@ char* HTTP_GET(http_request_t *req) {
         .body = buf,
         .body_length = strlen(buf),
     };
-
     strcpy(res.status_text, "OK");
     strcpy(res.content_type, mime);
 
     char *final = build_response(&res);
-
-    free(buf);
     return final;
 }
 
@@ -132,5 +127,20 @@ char* HTTP_HEAD(http_request_t *req) {
     char *final = build_response(&res);
 
     free(buf);
+    return final;
+}
+
+char* HTTP_POST(http_request_t* req) {
+    char* body = req->body;
+    body[req->body_len] = '\0';
+    
+    http_response_t res = {
+        .status_code = 200,
+        .body = "",
+        .body_length = 0,
+    };
+    strcpy(res.status_text, "OK");
+
+    char* final = build_response(&res);
     return final;
 }
