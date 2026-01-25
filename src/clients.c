@@ -105,7 +105,10 @@ void handle_client_read(cxt_t* cxt, int client_fd, int listener) {
     job_t* j = malloc(sizeof(job_t));
     if (!j) { perror("malloc job"); return; }
     j->fd = client_fd;
-    j->data = strdup(buf);
+    j->data = malloc((size_t)bytes_recv);
+    if (!j->data) { free(j); perror("malloc job data"); return; }
+    memcpy(j->data, buf, (size_t)bytes_recv);
+    j->data_len = (size_t)bytes_recv;
     j->next = NULL;
 
     pthread_mutex_lock(&cxt->q->lock);

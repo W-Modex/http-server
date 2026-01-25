@@ -32,16 +32,17 @@ void* worker_init(void* arg) {
         job_t* j = q_pop(cxt->q);
         pthread_mutex_unlock(&cxt->q->lock);
         if (!j) continue;
-        http_request_t* req = parse_http_request(j->data);
-        char* res = handle_response(req);
+        http_request_t* req = parse_http_request(j->data, j->data_len);
+        http_payload_t payload = handle_response(req);
+        if (req) free_http_request(req);
         pthread_mutex_lock(&cxt->pfds_lock);
         int found = 0;
         for (int i = 0; i < cxt->fdcount; i++) {
             if (cxt->clients[i].fd == j->fd) {
                 if (cxt->clients[i].write_buf)
                     free(cxt->clients[i].write_buf);
-                cxt->clients[i].write_buf = res;
-                cxt->clients[i].write_len = strlen(res);
+                cxt->clients[i].write_buf = payload.data;
+                cxt->clients[i].write_len = (ssize_t)payload.length;
                 cxt->clients[i].write_send = 0;
                 cxt->pfds[i].events |= POLLOUT;
                 cxt->pfds[i].events &= ~POLLIN;
@@ -49,7 +50,7 @@ void* worker_init(void* arg) {
                 break;
             }
         }
-        if (!found) free(res);
+        if (!found) free(payload.data);
         pthread_mutex_unlock(&cxt->pfds_lock);
         free(j->data);
         free(j);

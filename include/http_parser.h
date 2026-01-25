@@ -18,7 +18,7 @@ typedef struct {
     size_t body_len;
 } http_request_t;
 
-http_request_t* parse_http_request(const char *raw);
+http_request_t* parse_http_request(const char *raw, size_t raw_len);
 void free_http_request(http_request_t *req);
 const char* http_request_get_header(const http_request_t *req, const char *name);
 

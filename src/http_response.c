@@ -4,40 +4,124 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
-char* build_simple_error(int code, const char *text) {
-    http_response_t res = {
-        .status_code = code,
-        .body = "",
-        .body_length = 0,
-    };
-
-    strncpy(res.status_text, text, sizeof(res.status_text));
-    strcpy(res.content_type, "text/plain");
-    return build_response(&res);
+static void append_header_line(char *out, size_t *offset, const char *name, const char *value) {
+    size_t name_len = strlen(name);
+    size_t value_len = strlen(value);
+    memcpy(out + *offset, name, name_len);
+    *offset += name_len;
+    out[(*offset)++] = ':';
+    out[(*offset)++] = ' ';
+    memcpy(out + *offset, value, value_len);
+    *offset += value_len;
+    out[(*offset)++] = '\r';
+    out[(*offset)++] = '\n';
 }
 
-char* build_response(http_response_t *res) {
-    char header[512];
+void http_response_init(http_response_t *res, int status_code, const char *status_text) {
+    if (!res) return;
+    memset(res, 0, sizeof(*res));
+    res->status_code = status_code;
+    if (status_text) {
+        str_copy(res->status_text, status_text, sizeof(res->status_text));
+    }
+}
 
-    snprintf(header, sizeof(header),
-        "HTTP/1.1 %d %s\r\n"
-        "Content-Type: %s\r\n"
-        "Content-Length: %zu\r\n"
-        "\r\n",
-        res->status_code,
-        res->status_text,
-        res->content_type,
-        res->body_length
-    );
-    size_t total = strlen(header) + res->body_length;
+int http_response_add_header(http_response_t *res, const char *name, const char *value) {
+    if (!res || !name || !value) return -1;
+    if (res->header_count >= MAX_RESPONSE_HEADERS) return -1;
+    res->headers[res->header_count].name = strdup(name);
+    res->headers[res->header_count].value = strdup(value);
+    if (!res->headers[res->header_count].name || !res->headers[res->header_count].value) {
+        free(res->headers[res->header_count].name);
+        free(res->headers[res->header_count].value);
+        return -1;
+    }
+    res->header_count++;
+    return 0;
+}
+
+void http_response_set_body(http_response_t *res, const unsigned char *body, size_t body_length, const char *content_type) {
+    if (!res) return;
+    res->body = body;
+    res->body_length = body_length;
+    if (content_type) {
+        str_copy(res->content_type, content_type, sizeof(res->content_type));
+    }
+}
+
+void http_response_clear(http_response_t *res) {
+    if (!res) return;
+    for (int i = 0; i < res->header_count; ++i) {
+        free(res->headers[i].name);
+        free(res->headers[i].value);
+        res->headers[i].name = NULL;
+        res->headers[i].value = NULL;
+    }
+    res->header_count = 0;
+}
+
+static http_payload_t http_payload_empty(void) {
+    http_payload_t payload = { .data = NULL, .length = 0 };
+    return payload;
+}
+
+http_payload_t build_simple_error(int code, const char *text) {
+    http_response_t res;
+    http_response_init(&res, code, text);
+    http_response_set_body(&res, (const unsigned char *)"", 0, "text/plain");
+    http_payload_t payload = build_response(&res);
+    http_response_clear(&res);
+    return payload;
+}
+
+http_payload_t build_response(http_response_t *res) {
+    if (!res) return http_payload_empty();
+    const char *content_type = res->content_type[0] ? res->content_type : "application/octet-stream";
+
+    char status_line[128];
+    int status_len = snprintf(status_line, sizeof(status_line), "HTTP/1.1 %d %s\r\n",
+        res->status_code, res->status_text);
+    if (status_len < 0) return http_payload_empty();
+
+    char content_length_line[64];
+    int content_length_len = snprintf(content_length_line, sizeof(content_length_line),
+        "Content-Length: %zu\r\n", res->body_length);
+    if (content_length_len < 0) return http_payload_empty();
+
+    size_t header_len = (size_t)status_len;
+    header_len += strlen("Content-Type: ") + strlen(content_type) + 2;
+    header_len += (size_t)content_length_len;
+    for (int i = 0; i < res->header_count; ++i) {
+        header_len += strlen(res->headers[i].name) + 2 + strlen(res->headers[i].value) + 2;
+    }
+    header_len += 2;
+
+    size_t total = header_len + res->body_length;
     char *final = malloc(total + 1);
-    
-    memcpy(final, header, strlen(header));
-    memcpy(final + strlen(header), res->body, res->body_length);
-    
-    final[total] = '\0';
-    return final;
+    if (!final) return http_payload_empty();
+
+    size_t offset = 0;
+    memcpy(final + offset, status_line, (size_t)status_len);
+    offset += (size_t)status_len;
+    append_header_line(final, &offset, "Content-Type", content_type);
+    memcpy(final + offset, content_length_line, (size_t)content_length_len);
+    offset += (size_t)content_length_len;
+    for (int i = 0; i < res->header_count; ++i) {
+        append_header_line(final, &offset, res->headers[i].name, res->headers[i].value);
+    }
+    final[offset++] = '\r';
+    final[offset++] = '\n';
+
+    if (res->body_length > 0 && res->body) {
+        memcpy(final + offset, res->body, res->body_length);
+        offset += res->body_length;
+    }
+    final[offset] = '\0';
+
+    http_payload_t payload = { .data = final, .length = offset };
+    return payload;
 }
 
 char* mime_type(char *filename) {
@@ -64,8 +148,8 @@ char* resolve_path(char* path) {
     return strdup(s);
 }
 
-char* handle_response(http_request_t* req) {
-    if (!req) return NULL;
+http_payload_t handle_response(http_request_t* req) {
+    if (!req) return http_payload_empty();
 
     if (strcmp(req->method, "GET") == 0) 
         return HTTP_GET(req);
@@ -76,7 +160,7 @@ char* handle_response(http_request_t* req) {
     return build_simple_error(405, "Method Not Allowed");
 }
 
-char* HTTP_GET(http_request_t *req) {
+http_payload_t HTTP_GET(http_request_t *req) {
     char* filename = resolve_path(req->path);
     if (!filename)
         return build_simple_error(400, "Bad Request");
@@ -84,63 +168,54 @@ char* HTTP_GET(http_request_t *req) {
     char* mime = mime_type(filename);
     printf("mime is: %s, filename is: %s\n", mime, filename);
 
-    char* buf = file_to_buffer(filename);
-    if (!buf) {
+    unsigned char *buf = NULL;
+    size_t buf_len = 0;
+    if (file_to_buffer(filename, &buf, &buf_len) != 0) {
+        free(filename);
         return build_simple_error(404, "Not Found");
     }
 
-    http_response_t res = {
-        .status_code = 200,
-        .body = buf,
-        .body_length = strlen(buf),
-    };
-    strcpy(res.status_text, "OK");
-    strcpy(res.content_type, mime);
+    http_response_t res;
+    http_response_init(&res, 200, "OK");
+    http_response_set_body(&res, buf, buf_len, mime);
 
-    char *final = build_response(&res);
-    return final;
-}
-
-char* HTTP_HEAD(http_request_t *req) {
-    char* filename = resolve_path(req->path);
-    if (!filename)
-        return build_simple_error(400, "Bad Request");
-
-    char* mime = mime_type(filename);
-    printf("mime is: %s, filename is: %s\n", mime, filename);
-
-    char* buf = file_to_buffer(filename);
-    printf("buf: %s\n", buf);
-    if (!buf) {
-        return build_simple_error(404, "Not Found");
-    }
-
-    http_response_t res = {
-        .status_code = 200,
-        .body = "",
-        .body_length = 0,
-    };
-
-    strcpy(res.status_text, "OK");
-    strcpy(res.content_type, mime);
-
-    char *final = build_response(&res);
-
+    http_payload_t payload = build_response(&res);
+    http_response_clear(&res);
     free(buf);
-    return final;
+    free(filename);
+    return payload;
 }
 
-char* HTTP_POST(http_request_t* req) {
-    char* body = req->body;
-    body[req->body_len] = '\0';
-    
-    http_response_t res = {
-        .status_code = 200,
-        .body = "",
-        .body_length = 0,
-    };
-    strcpy(res.status_text, "OK");
+http_payload_t HTTP_HEAD(http_request_t *req) {
+    char* filename = resolve_path(req->path);
+    if (!filename)
+        return build_simple_error(400, "Bad Request");
 
-    char* final = build_response(&res);
-    return final;
+    char* mime = mime_type(filename);
+    printf("mime is: %s, filename is: %s\n", mime, filename);
+
+    struct stat st;
+    if (stat(filename, &st) != 0) {
+        free(filename);
+        return build_simple_error(404, "Not Found");
+    }
+
+    http_response_t res;
+    http_response_init(&res, 200, "OK");
+    http_response_set_body(&res, NULL, (size_t)st.st_size, mime);
+
+    http_payload_t payload = build_response(&res);
+    http_response_clear(&res);
+    free(filename);
+    return payload;
+}
+
+http_payload_t HTTP_POST(http_request_t* req) {
+    (void)req;
+    http_response_t res;
+    http_response_init(&res, 200, "OK");
+    http_response_set_body(&res, (const unsigned char *)"", 0, "text/plain");
+    http_payload_t payload = build_response(&res);
+    http_response_clear(&res);
+    return payload;
 }
