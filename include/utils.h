@@ -13,6 +13,7 @@
 #define MAX_PATH_LEN      512
 #define MAX_METHOD_LEN    16
 #define MAX_HEADER_COUNT  100
+#define MAX_RESPONSE_HEADERS 100
 #define MAX_REQUEST_SIZE  16384
 #define MAX_RESPONSE_SIZE 16384
 #define MAX_BUFFER        4096
@@ -76,27 +77,45 @@ static inline int endswith(char* str, char* t) {
 
 
 
-static inline char* file_to_buffer(const char *filename) {
+static inline int file_to_buffer(const char *filename, unsigned char **buf, size_t *len) {
+    if (!filename || !buf || !len) return -1;
+    *buf = NULL;
+    *len = 0;
     FILE *f = fopen(filename, "rb");
     if (!f) {
         perror("fopen");
         printf("Tried to open: %s\n", filename);
-        return NULL;
+        return -1;
     }
 
-    fseek(f, 0, SEEK_END);
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return -1;
+    }
     long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
+    if (size < 0) {
+        fclose(f);
+        return -1;
+    }
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return -1;
+    }
 
-    char *buf = malloc(size + 1);
-    if (!buf) { fclose(f); return NULL; }
+    unsigned char *data = malloc((size_t)size);
+    if (!data) { fclose(f); return -1; }
 
-    fread(buf, 1, size, f);
-    buf[size] = '\0';
-
+    size_t read_size = fread(data, 1, (size_t)size, f);
     fclose(f);
 
-    return buf;
+    if (read_size != (size_t)size) {
+        free(data);
+        return -1;
+    }
+
+    *buf = data;
+    *len = (size_t)size;
+    return 0;
 }
 
 #endif

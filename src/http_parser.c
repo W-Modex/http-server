@@ -61,29 +61,39 @@ static int parse_start_line(char *line, http_request_t *req) {
     return 0;
 }
 
-/* Main parser */
-http_request_t *parse_http_request(const char *raw) {
-    if (!raw) return NULL;
+static int find_header_separator(const char *raw, size_t raw_len, size_t *sep_len) {
+    if (!raw || !sep_len) return -1;
+    for (size_t i = 0; i + 3 < raw_len; ++i) {
+        if (raw[i] == '\r' && raw[i + 1] == '\n' && raw[i + 2] == '\r' && raw[i + 3] == '\n') {
+            *sep_len = 4;
+            return (int)i;
+        }
+    }
+    for (size_t i = 0; i + 1 < raw_len; ++i) {
+        if (raw[i] == '\n' && raw[i + 1] == '\n') {
+            *sep_len = 2;
+            return (int)i;
+        }
+    }
+    return -1;
+}
 
-    char *buf = strdup(raw);
+/* Main parser */
+http_request_t *parse_http_request(const char *raw, size_t raw_len) {
+    if (!raw || raw_len == 0) return NULL;
+
+    size_t sep_len = 0;
+    int sep_index = find_header_separator(raw, raw_len, &sep_len);
+    size_t header_len = (sep_index >= 0) ? (size_t)sep_index : raw_len;
+    size_t body_start = (sep_index >= 0) ? (size_t)sep_index + sep_len : raw_len;
+
+    char *buf = malloc(header_len + 1);
     if (!buf) return NULL;
+    memcpy(buf, raw, header_len);
+    buf[header_len] = '\0';
 
     http_request_t *req = calloc(1, sizeof(http_request_t));
     if (!req) { free(buf); return NULL; }
-
-    char *body_ptr = NULL;
-
-    char *sep = strstr(buf, "\r\n\r\n");
-    if (sep) {
-        body_ptr = sep + 4;
-        *sep = '\0';                 
-    } else {
-        sep = strstr(buf, "\n\n");
-        if (sep) {
-            body_ptr = sep + 2;
-            *sep = '\0';
-        }
-    }
 
     char *saveptr = NULL;
     char *line = strtok_r(buf, "\r\n", &saveptr);
@@ -147,28 +157,25 @@ http_request_t *parse_http_request(const char *raw) {
         }
 
         if ((size_t)cl > 0) {
-            
-            size_t available = body_ptr ? strlen(body_ptr) : 0;
-            if ((size_t)cl > available) {
+            if (body_start + (size_t)cl > raw_len) {
                 free_request_partial(req);
                 free(buf);
                 return NULL;
             }
 
             req->body_len = (size_t)cl;
-            req->body = malloc(req->body_len + 1);
+            req->body = malloc(req->body_len);
             if (!req->body) { free_request_partial(req); free(buf); return NULL; }
 
-            memcpy(req->body, body_ptr, req->body_len);
-            req->body[req->body_len] = '\0';
+            memcpy(req->body, raw + body_start, req->body_len);
         }
-    } else if (body_ptr && *body_ptr) {
-        /* Fallback: treat everything after blank line as body */
-        req->body_len = strlen(body_ptr);
-        req->body = malloc(req->body_len + 1);
-        if (!req->body) { free_request_partial(req); free(buf); return NULL; }
-
-        memcpy(req->body, body_ptr, req->body_len + 1); /* include '\0' */
+    } else if (body_start < raw_len) {
+        req->body_len = raw_len - body_start;
+        if (req->body_len > 0) {
+            req->body = malloc(req->body_len);
+            if (!req->body) { free_request_partial(req); free(buf); return NULL; }
+            memcpy(req->body, raw + body_start, req->body_len);
+        }
     }
 
     free(buf);

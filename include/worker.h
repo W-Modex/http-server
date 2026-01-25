@@ -9,6 +9,7 @@
 typedef struct job {
     int fd;
     char* data;
+    size_t data_len;
     struct job* next;
 } job_t;
 
