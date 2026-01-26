@@ -168,3 +168,69 @@ int recv_message(int client_fd, char *buf, int buf_size) {
 
     return (int)n;
 }
+
+SSL_CTX* init_ssl_ctx() {
+    SSL_CTX* ctx = SSL_CTX_new(TLS_server_method());
+    if (!ctx) {
+        ERR_print_errors_fp(stderr);
+        return NULL;
+    }
+
+    // Require TLS 1.2+
+    if (!SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION)) {
+        ERR_print_errors_fp(stderr);
+        SSL_CTX_free(ctx);
+        return NULL;
+    }
+
+    // Secure options
+    SSL_CTX_set_options(ctx,
+        SSL_OP_NO_RENEGOTIATION |
+        SSL_OP_NO_COMPRESSION |
+        SSL_OP_CIPHER_SERVER_PREFERENCE
+    );
+
+    // TLS 1.2 ciphers
+    SSL_CTX_set_cipher_list(ctx,
+        "ECDHE-ECDSA-AES256-GCM-SHA384:"
+        "ECDHE-RSA-AES256-GCM-SHA384:"
+        "ECDHE-ECDSA-AES128-GCM-SHA256:"
+        "ECDHE-RSA-AES128-GCM-SHA256"
+    );
+
+    // TLS 1.3 ciphers
+    SSL_CTX_set_ciphersuites(ctx,
+        "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256"
+    );
+
+    // Load cert chain
+    if (SSL_CTX_use_certificate_chain_file(ctx, "../certs/chain.pem") <= 0) {
+        ERR_print_errors_fp(stderr);
+        SSL_CTX_free(ctx);
+        return NULL;
+    }
+
+    // Load private key
+    if (SSL_CTX_use_PrivateKey_file(ctx, "../certs/pkey.pem", SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        SSL_CTX_free(ctx);
+        return NULL;
+    }
+
+    // Validate key matches cert
+    if (!SSL_CTX_check_private_key(ctx)) {
+        fprintf(stderr, "Private key does not match certificate\n");
+        SSL_CTX_free(ctx);
+        return NULL;
+    }
+
+    // Session cache ID
+    static const unsigned char cache_id[] = "my_tls_server_ctx";
+    SSL_CTX_set_session_id_context(ctx, cache_id, sizeof(cache_id));
+    SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_SERVER);
+
+    // No client cert required 
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+
+    return ctx;
+}

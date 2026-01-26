@@ -1,8 +1,13 @@
 #include "../include/clients.h"
 #include "../include/worker.h"
+#include "network.h"
 #include "utils.h"
 #include <asm-generic/socket.h>
+#include <iso646.h>
+#include <openssl/ssl.h>
 #include <pthread.h>
+#include <sched.h>
+#include <sys/poll.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -16,16 +21,17 @@ pthread_t workers[WORKER_COUNT];
 
 int main(int argc, char** argv) {
     int listener = get_listener_fd("2323");
-    if (listener < 0) {
-        fprintf(stderr, "failed to connect\n");
-        exit(EXIT_FAILURE);
-    }
+    int ssl_listener = get_listener_fd("3434");
+    if (listener < 0 || ssl_listener < 0) DIE("listeners init");
+
+    SSL_CTX* ssl_ctx = init_ssl_ctx();
 
     cxt_t* worker_cxt = malloc(sizeof(cxt_t));
     if (!worker_cxt) DIE("malloc worker_cxt");
 
     worker_cxt->fdcount = 0;
     worker_cxt->fdsize = INITIAL_FD_SIZE;
+    worker_cxt->ssl_ctx = ssl_ctx;
 
     job_queue_t* queue = malloc(sizeof(job_queue_t));
     if (!queue) DIE("malloc queue");
@@ -36,11 +42,16 @@ int main(int argc, char** argv) {
 
     struct pollfd *pfds = calloc(worker_cxt->fdsize, sizeof(struct pollfd));
     if (!pfds) DIE("calloc pfds");
+
     client_t *clients = calloc(worker_cxt->fdsize, sizeof(client_t));
     if (!clients) DIE("calloc clients");
 
     pfds[0].fd = listener;
     pfds[0].events = POLLIN;
+    worker_cxt->fdcount++;
+
+    pfds[1].fd = ssl_listener;
+    pfds[1].events = POLLIN;
     worker_cxt->fdcount++;
 
     worker_cxt->pfds = pfds;
@@ -49,9 +60,18 @@ int main(int argc, char** argv) {
     worker_cxt->clients = clients;
 
     worker_cxt->clients[0].fd = listener;
+    worker_cxt->clients[0].is_ssl = NOT_TLS;
+    worker_cxt->clients[0].ssl = NULL;
     worker_cxt->clients[0].write_buf = NULL;
     worker_cxt->clients[0].write_len = 0;
     worker_cxt->clients[0].write_send = 0;
+    
+    worker_cxt->clients[1].fd = ssl_listener;
+    worker_cxt->clients[1].is_ssl = NOT_TLS;
+    worker_cxt->clients[1].ssl = NULL;
+    worker_cxt->clients[1].write_buf = NULL;
+    worker_cxt->clients[1].write_len = 0;
+    worker_cxt->clients[1].write_send = 0;
 
     printf("server: waiting for connections...\n");
 
@@ -67,12 +87,13 @@ int main(int argc, char** argv) {
             exit(1);
         }
 
-        process_connections(worker_cxt, listener);
+        process_connections(worker_cxt, listener, ssl_listener);
     }
-
-    free(pfds);
-    free(clients);
-    free(queue);
+    end:
+    free(worker_cxt->pfds);
+    free(worker_cxt->clients);
+    free(worker_cxt->q);
+    SSL_CTX_free(worker_cxt->ssl_ctx);
     free(worker_cxt);
 
     return 0;

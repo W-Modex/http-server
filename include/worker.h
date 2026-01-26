@@ -3,6 +3,7 @@
 
 #include "utils.h"
 #include <bits/pthreadtypes.h>
+#include <openssl/ssl.h>
 #include <sys/types.h>
 
 
@@ -22,6 +23,8 @@ typedef struct job_queue{
 
 typedef struct client {
     int fd;
+    int is_ssl;
+    SSL* ssl;
     char read_buf[MAX_REQUEST_SIZE];
     char* write_buf;
     ssize_t write_len;
@@ -33,6 +36,7 @@ typedef struct Cxt {
     pthread_mutex_t pfds_lock;
     job_queue_t* q;
     client_t* clients;
+    SSL_CTX* ssl_ctx;
     int fdcount;
     int fdsize;
 } cxt_t;
