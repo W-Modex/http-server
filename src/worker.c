@@ -32,8 +32,17 @@ void* worker_init(void* arg) {
         job_t* j = q_pop(cxt->q);
         pthread_mutex_unlock(&cxt->q->lock);
         if (!j) continue;
+        int is_ssl = 0;
+        pthread_mutex_lock(&cxt->pfds_lock);
+        for (int i = 0; i < cxt->fdcount; i++) {
+            if (cxt->clients[i].fd == j->fd) {
+                is_ssl = cxt->clients[i].is_ssl != 0;
+                break;
+            }
+        }
+        pthread_mutex_unlock(&cxt->pfds_lock);
         http_request_t* req = parse_http_request(j->data, j->data_len);
-        http_payload_t payload = handle_response(req);
+        http_payload_t payload = handle_response(req, is_ssl);
         if (req) free_http_request(req);
         pthread_mutex_lock(&cxt->pfds_lock);
         int found = 0;

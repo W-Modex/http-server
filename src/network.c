@@ -204,14 +204,14 @@ SSL_CTX* init_ssl_ctx() {
     );
 
     // Load cert chain
-    if (SSL_CTX_use_certificate_chain_file(ctx, "../certs/chain.pem") <= 0) {
+    if (SSL_CTX_use_certificate_chain_file(ctx, "/etc/letsencrypt/live/modex.work/fullchain.pem") <= 0) {
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ctx);
         return NULL;
     }
 
     // Load private key
-    if (SSL_CTX_use_PrivateKey_file(ctx, "../certs/pkey.pem", SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_PrivateKey_file(ctx, "/etc/letsencrypt/live/modex.work/privkey.pem", SSL_FILETYPE_PEM) <= 0) {
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ctx);
         return NULL;

@@ -26,6 +26,8 @@ int main(int argc, char** argv) {
 
     SSL_CTX* ssl_ctx = init_ssl_ctx();
 
+    if (ssl_ctx == NULL) DIE("ssl_ctx init");
+
     cxt_t* worker_cxt = malloc(sizeof(cxt_t));
     if (!worker_cxt) DIE("malloc worker_cxt");
 

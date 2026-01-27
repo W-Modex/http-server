@@ -67,6 +67,34 @@ static http_payload_t http_payload_empty(void) {
     return payload;
 }
 
+static int is_https_request(int is_ssl, const http_request_t *req) {
+    if (is_ssl) return 1;
+    if (!req) return 0;
+    const char *xfp = http_request_get_header(req, "X-Forwarded-Proto");
+    if (xfp && str_case_eq(xfp, "https")) return 1;
+    return 0;
+}
+
+static http_payload_t build_https_redirect(const http_request_t *req) {
+    if (!req) return http_payload_empty();
+    const char *host = http_request_get_header(req, "Host");
+    if (!host || !*host) return build_simple_error(400, "Bad Request");
+
+    size_t loc_len = strlen("https://") + strlen(host) + strlen(req->path) + 1;
+    char *location = malloc(loc_len);
+    if (!location) return http_payload_empty();
+    snprintf(location, loc_len, "https://%s%s", host, req->path);
+
+    http_response_t res;
+    http_response_init(&res, 308, "Permanent Redirect");
+    http_response_set_body(&res, (const unsigned char *)"", 0, "text/plain");
+    http_response_add_header(&res, "Location", location);
+    http_payload_t payload = build_response(&res);
+    http_response_clear(&res);
+    free(location);
+    return payload;
+}
+
 http_payload_t build_simple_error(int code, const char *text) {
     http_response_t res;
     http_response_init(&res, code, text);
@@ -96,6 +124,8 @@ http_payload_t build_response(http_response_t *res) {
     for (int i = 0; i < res->header_count; ++i) {
         header_len += strlen(res->headers[i].name) + 2 + strlen(res->headers[i].value) + 2;
     }
+    header_len += strlen("Strict-Transport-Security") + 2
+        + strlen("max-age=31536000; includeSubDomains") + 2;
     header_len += 2;
 
     size_t total = header_len + res->body_length;
@@ -105,9 +135,12 @@ http_payload_t build_response(http_response_t *res) {
     size_t offset = 0;
     memcpy(final + offset, status_line, (size_t)status_len);
     offset += (size_t)status_len;
+
     append_header_line(final, &offset, "Content-Type", content_type);
     memcpy(final + offset, content_length_line, (size_t)content_length_len);
     offset += (size_t)content_length_len;
+    append_header_line(final, &offset, "Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    
     for (int i = 0; i < res->header_count; ++i) {
         append_header_line(final, &offset, res->headers[i].name, res->headers[i].value);
     }
@@ -148,8 +181,9 @@ char* resolve_path(char* path) {
     return strdup(s);
 }
 
-http_payload_t handle_response(http_request_t* req) {
+http_payload_t handle_response(http_request_t* req, int is_ssl) {
     if (!req) return http_payload_empty();
+    if (!is_https_request(is_ssl, req)) return build_https_redirect(req);
 
     if (strcmp(req->method, "GET") == 0) 
         return HTTP_GET(req);
