@@ -1,14 +1,9 @@
-#include "../include/clients.h"
+#include "net/clients.h"
 #include <fcntl.h>
-#include "network.h"
-#include "utils.h"
-#include "worker.h"
+#include "net/socket.h"
+#include "utils/str.h"
 #include <errno.h>
-#include <openssl/ssl.h>
 #include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
 void process_connections(cxt_t* cxt, int listener, int ssl_listener) {

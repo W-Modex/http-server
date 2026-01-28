@@ -1,9 +1,8 @@
 #include <pthread.h>
-#include <string.h>
 #include <sys/poll.h>
 #include "../include/worker.h"
-#include "../include/http_response.h"
-#include "http_parser.h"
+#include "../include/http/response.h"
+#include "../include/http/parser.h"
 
 void q_push(job_queue_t *q, job_t* j) {
     if (!q->tail) {
@@ -23,7 +22,7 @@ job_t* q_pop(job_queue_t *q) {
     return j;
 }
 
-void* worker_init(void* arg) {
+void* process_jobs(void* arg) {
     cxt_t* cxt = (cxt_t*) arg;
     while (1) {
         pthread_mutex_lock(&cxt->q->lock);

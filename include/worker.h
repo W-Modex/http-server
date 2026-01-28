@@ -1,7 +1,7 @@
 #ifndef WORKER_H
 #define WORKER_H
 
-#include "utils.h"
+#include "utils/str.h"
 #include <bits/pthreadtypes.h>
 #include <openssl/ssl.h>
 #include <sys/types.h>
@@ -44,6 +44,6 @@ typedef struct Cxt {
 void q_push(job_queue_t* q, job_t* j);
 job_t* q_pop(job_queue_t* q);
 
-void* worker_init(void* arg);
+void* process_jobs(void* arg);
 
 #endif

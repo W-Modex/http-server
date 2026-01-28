@@ -1,8 +1,5 @@
-#include "../include/utils.h"
-#include "http_parser.h"
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
+#include "utils/str.h"
+#include "http/parser.h"
 
 static void free_request_partial(http_request_t *req) {
     if (!req) return;

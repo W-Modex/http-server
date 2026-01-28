@@ -4,11 +4,11 @@ project(server)
 find_package(OpenSSL REQUIRED)
 
 add_library(myserver_lib
-    src/clients.c
-    src/network.c
+    src/net/clients.c
+    src/net/socket.c
     src/worker.c
-    src/http_response.c
-    src/http_parser.c
+    src/http/response.c
+    src/http/parser.c
 )
 
 target_include_directories(myserver_lib PUBLIC include)

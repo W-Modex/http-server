@@ -1,8 +1,7 @@
 #ifndef RESPONDER_H
 #define RESPONDER_H
 
-#include "http_parser.h"
-#include "worker.h"
+#include "http/parser.h"
 
 typedef struct {
     char *name;

@@ -1,7 +1,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#include "utils.h"
+#include "utils/str.h"
 
 typedef struct {
     char *name;

@@ -1,9 +1,6 @@
-#include "../include/http_response.h"
-#include "http_parser.h"
-#include "utils.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "http/response.h"
+#include "http/parser.h"
+#include "utils/str.h"
 #include <sys/stat.h>
 
 static void append_header_line(char *out, size_t *offset, const char *name, const char *value) {
