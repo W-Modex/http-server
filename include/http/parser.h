@@ -8,13 +8,23 @@ typedef struct {
     char *value;
 } header_t;
 
+typedef enum {
+    HTTP_GET,
+    HTTP_POST,
+    HTTP_PUT,
+    HTTP_DELETE,
+    HTTP_HEAD,
+    HTTP_UNKNOWN
+} http_method_t;
+
 typedef struct {
-    char method[MAX_METHOD_LEN];
+    http_method_t method;
     char path[MAX_PATH_LEN];
     char version[MAX_METHOD_LEN];
     header_t headers[MAX_HEADER_COUNT];
     int header_count;
-     char *body;      
+    int is_ssl;
+    char *body;      
     size_t body_len;
 } http_request_t;
 

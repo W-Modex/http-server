@@ -15,7 +15,8 @@ static int test_build_response_basic(void) {
     http_response_set_body(&res, (const unsigned char *)"hello", 5, "text/plain");
     ASSERT_TRUE(http_response_add_header(&res, "X-Test", "123") == 0);
 
-    http_payload_t payload = build_response(&res);
+    http_payload_t payload;
+    ASSERT_TRUE(build_response(&res, &payload) != 0);
     http_response_clear(&res);
 
     ASSERT_TRUE(payload.data != NULL);
@@ -34,7 +35,8 @@ static int test_default_content_type(void) {
     http_response_t res;
     http_response_init(&res, 204, "No Content");
     http_response_set_body(&res, NULL, 0, NULL);
-    http_payload_t payload = build_response(&res);
+    http_payload_t payload;
+    ASSERT_TRUE(build_response(&res, &payload) != 0);
     http_response_clear(&res);
 
     ASSERT_TRUE(payload.data != NULL);
@@ -54,7 +56,8 @@ static int test_add_header_validation(void) {
 }
 
 static int test_build_simple_error(void) {
-    http_payload_t payload = build_simple_error(404, "Not Found");
+    http_payload_t payload;
+    ASSERT_TRUE(build_simple_error(404, "Not Found", &payload) != 0);
     ASSERT_TRUE(payload.data != NULL);
     ASSERT_TRUE(strncmp(payload.data, "HTTP/1.1 404 Not Found\r\n", 24) == 0);
     ASSERT_TRUE(strstr(payload.data, "Content-Length: 0\r\n") != NULL);
@@ -68,7 +71,9 @@ static int test_handle_response_redirect(void) {
         "\r\n";
     http_request_t *req = parse_http_request(msg, strlen(msg));
     ASSERT_TRUE(req != NULL);
-    http_payload_t payload = handle_response(req, 0);
+    http_payload_t payload;
+    req->is_ssl = 0;
+    ASSERT_TRUE(handle_response(req, &payload) != 0);
     free_http_request(req);
 
     ASSERT_TRUE(payload.data != NULL);

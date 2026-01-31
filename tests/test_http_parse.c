@@ -16,7 +16,7 @@ static int test_post_with_body(void) {
         "username=john&password=1234";
     http_request_t *req = parse_http_request(msg, strlen(msg));
     ASSERT_TRUE(req != NULL);
-    ASSERT_TRUE(strcmp(req->method, "POST") == 0);
+    ASSERT_TRUE(req->method == HTTP_POST);
     ASSERT_TRUE(strcmp(req->path, "/") == 0);
     ASSERT_TRUE(strcmp(req->version, "HTTP/1.1") == 0);
     ASSERT_TRUE(req->body_len == 27);
@@ -33,7 +33,7 @@ static int test_get_no_body(void) {
         "\r\n";
     http_request_t *req = parse_http_request(msg, strlen(msg));
     ASSERT_TRUE(req != NULL);
-    ASSERT_TRUE(strcmp(req->method, "GET") == 0);
+    ASSERT_TRUE(req->method == HTTP_GET);
     ASSERT_TRUE(strcmp(req->path, "/index.html") == 0);
     ASSERT_TRUE(strcmp(req->version, "HTTP/1.0") == 0);
     ASSERT_TRUE(req->body_len == 0);

@@ -24,11 +24,7 @@ int main(int argc, char** argv) {
 
     while (1) {
         int poll_count = poll(ctx->pfds, ctx->fdcount, 100);
-        if (poll_count == -1) {
-            perror("poll");
-            exit(1);
-        }
-
+        if (poll_count == -1) DIE("poll");
         process_connections(ctx, listener, ssl_listener);
     }
 

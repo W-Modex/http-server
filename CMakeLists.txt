@@ -9,6 +9,8 @@ add_library(myserver_lib
     src/worker.c
     src/http/response.c
     src/http/parser.c
+    src/router/router.c
+    src/router/handlers.c
 )
 
 target_include_directories(myserver_lib PUBLIC include)

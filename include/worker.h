@@ -1,6 +1,7 @@
 #ifndef WORKER_H
 #define WORKER_H
 
+#include "http/response.h"
 #include "utils/str.h"
 #include <bits/pthreadtypes.h>
 #include <openssl/ssl.h>
@@ -44,6 +45,7 @@ typedef struct Cxt {
 void q_push(job_queue_t* q, job_t* j);
 job_t* q_pop(job_queue_t* q);
 
+void setup_write(cxt_t* ctx, http_payload_t* payload, job_t* j);
 void* process_jobs(void* arg);
 
 #endif

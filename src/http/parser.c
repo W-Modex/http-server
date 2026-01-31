@@ -1,4 +1,5 @@
 #include "utils/str.h"
+#include <string.h>
 #include "http/parser.h"
 
 static void free_request_partial(http_request_t *req) {
@@ -9,6 +10,15 @@ static void free_request_partial(http_request_t *req) {
     }
     free(req->body);
     free(req);
+}
+
+static void set_http_method(http_request_t* req, const char* method) {
+    if (strcmp(method, "GET") == 0) req->method = HTTP_GET;
+    else if (strcmp(method, "POST") == 0) req->method = HTTP_POST;
+    else if (strcmp(method, "PUT") == 0) req->method = HTTP_PUT;
+    else if (strcmp(method, "HEAD") == 0) req->method = HTTP_HEAD;
+    else if (strcmp(method, "DELETE") == 0) req->method = HTTP_DELETE;
+    else req->method = HTTP_UNKNOWN;
 }
 
 void free_http_request(http_request_t *req) {
@@ -41,15 +51,12 @@ static int parse_start_line(char *line, http_request_t *req) {
     if (!method || !path || !ver) return -1;
 
     /* validate lengths */
-    if (strlen(method) >= sizeof(req->method)) return -1;
+    if (strlen(method) >= MAX_METHOD_LEN) return -1;
     if (strlen(path) >= sizeof(req->path)) return -1;
     if (strlen(ver)  >= sizeof(req->version)) return -1;
 
-    /* basic validation of version (should start with "HTTP/") */
     if (strncmp(ver, "HTTP/", 5) != 0) return -1;
-
-    strncpy(req->method, method, sizeof(req->method)-1);
-    req->method[sizeof(req->method)-1] = '\0';
+    set_http_method(req, method);
     strncpy(req->path, path, sizeof(req->path)-1);
     req->path[sizeof(req->path)-1] = '\0';
     strncpy(req->version, ver, sizeof(req->version)-1);

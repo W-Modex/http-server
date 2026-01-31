@@ -1,6 +1,8 @@
 #include "http/response.h"
 #include "http/parser.h"
+#include "router/router.h"
 #include "utils/str.h"
+#include <stdlib.h>
 #include <sys/stat.h>
 
 static void append_header_line(char *out, size_t *offset, const char *name, const char *value) {
@@ -59,12 +61,20 @@ void http_response_clear(http_response_t *res) {
     res->header_count = 0;
 }
 
-static http_payload_t http_payload_empty(void) {
-    http_payload_t payload = { .data = NULL, .length = 0 };
-    return payload;
+static void http_payload_clear(http_payload_t *payload) {
+    if (!payload) return;
+    payload->data = NULL;
+    payload->length = 0;
 }
 
-static int is_https_request(int is_ssl, const http_request_t *req) {
+static int response_set_error(http_response_t *res, int code, const char *text) {
+    if (!res) return 0;
+    http_response_init(res, code, text);
+    http_response_set_body(res, (const unsigned char *)"", 0, "text/plain");
+    return 1;
+}
+
+int is_https_request(int is_ssl, const http_request_t *req) {
     if (is_ssl) return 1;
     if (!req) return 0;
     const char *xfp = http_request_get_header(req, "X-Forwarded-Proto");
@@ -72,48 +82,50 @@ static int is_https_request(int is_ssl, const http_request_t *req) {
     return 0;
 }
 
-static http_payload_t build_https_redirect(const http_request_t *req) {
-    if (!req) return http_payload_empty();
+int build_https_redirect(const http_request_t *req, http_payload_t *payload) {
+    if (!req || !payload) return 0;
     const char *host = http_request_get_header(req, "Host");
-    if (!host || !*host) return build_simple_error(400, "Bad Request");
+    if (!host || !*host) return build_simple_error(400, "Bad Request", payload);
 
     size_t loc_len = strlen("https://") + strlen(host) + strlen(req->path) + 1;
     char *location = malloc(loc_len);
-    if (!location) return http_payload_empty();
+    if (!location) return 0;
     snprintf(location, loc_len, "https://%s%s", host, req->path);
 
     http_response_t res;
     http_response_init(&res, 308, "Permanent Redirect");
     http_response_set_body(&res, (const unsigned char *)"", 0, "text/plain");
     http_response_add_header(&res, "Location", location);
-    http_payload_t payload = build_response(&res);
+    int ok = build_response(&res, payload);
     http_response_clear(&res);
     free(location);
-    return payload;
+    return ok;
 }
 
-http_payload_t build_simple_error(int code, const char *text) {
+int build_simple_error(int code, const char *text, http_payload_t *payload) {
+    if (!payload) return 0;
     http_response_t res;
     http_response_init(&res, code, text);
     http_response_set_body(&res, (const unsigned char *)"", 0, "text/plain");
-    http_payload_t payload = build_response(&res);
+    int ok = build_response(&res, payload);
     http_response_clear(&res);
-    return payload;
+    return ok;
 }
 
-http_payload_t build_response(http_response_t *res) {
-    if (!res) return http_payload_empty();
+int build_response(http_response_t *res, http_payload_t *payload) {
+    if (!res || !payload) return 0;
+    http_payload_clear(payload);
     const char *content_type = res->content_type[0] ? res->content_type : "application/octet-stream";
 
     char status_line[128];
     int status_len = snprintf(status_line, sizeof(status_line), "HTTP/1.1 %d %s\r\n",
         res->status_code, res->status_text);
-    if (status_len < 0) return http_payload_empty();
+    if (status_len < 0) return 0;
 
     char content_length_line[64];
     int content_length_len = snprintf(content_length_line, sizeof(content_length_line),
         "Content-Length: %zu\r\n", res->body_length);
-    if (content_length_len < 0) return http_payload_empty();
+    if (content_length_len < 0) return 0;
 
     size_t header_len = (size_t)status_len;
     header_len += strlen("Content-Type: ") + strlen(content_type) + 2;
@@ -127,7 +139,7 @@ http_payload_t build_response(http_response_t *res) {
 
     size_t total = header_len + res->body_length;
     char *final = malloc(total + 1);
-    if (!final) return http_payload_empty();
+    if (!final) return 0;
 
     size_t offset = 0;
     memcpy(final + offset, status_line, (size_t)status_len);
@@ -150,8 +162,9 @@ http_payload_t build_response(http_response_t *res) {
     }
     final[offset] = '\0';
 
-    http_payload_t payload = { .data = final, .length = offset };
-    return payload;
+    payload->data = final;
+    payload->length = offset;
+    return 1;
 }
 
 char* mime_type(char *filename) {
@@ -166,7 +179,6 @@ char* mime_type(char *filename) {
 }
 
 char* resolve_path(char* path) {
-    printf("request path is: %s\n", path);
     if (strcmp(path, "/") == 0) return strdup("../static/index.html"); 
     if (strstr(path, "..")) return NULL;
     char s[512];
@@ -178,23 +190,42 @@ char* resolve_path(char* path) {
     return strdup(s);
 }
 
-http_payload_t handle_response(http_request_t* req, int is_ssl) {
-    if (!req) return http_payload_empty();
-    if (!is_https_request(is_ssl, req)) return build_https_redirect(req);
+int handle_response(http_request_t* req, http_payload_t* payload) {
+    if (!payload) return 0;
+    http_payload_clear(payload);
+    if (!req) return build_simple_error(400, "Bad Request", payload);
+    if (!is_https_request(req->is_ssl, req)) return build_https_redirect(req, payload);
 
-    if (strcmp(req->method, "GET") == 0) 
-        return HTTP_GET(req);
-    else if (strcmp(req->method, "HEAD") == 0)
-        return HTTP_HEAD(req);
-    else if (strcmp(req->method, "POST") == 0)
-        return HTTP_POST(req);
-    return build_simple_error(405, "Method Not Allowed");
+    http_response_t res;
+    int routed = router_dispatch(req, &res);
+    if (routed == 0) {
+        switch (req->method) {
+            case HTTP_GET:
+                routed = static_get(req, &res);
+                break;
+            case HTTP_HEAD:
+                routed = static_head(req, &res);
+                break;
+            default:
+                routed = response_set_error(&res, 405, "Method Not Allowed");
+        }
+    }
+    if (routed <= 0) return build_simple_error(500, "Internal Server Error", payload);
+
+    int ok = build_response(&res, payload);
+    if (res.body_owned && res.body) {
+        free((void *)res.body);
+    }
+    http_response_clear(&res);
+    return ok;
 }
 
-http_payload_t HTTP_GET(http_request_t *req) {
+int static_get(http_request_t *req, http_response_t *res) {
+    if (!res) return 0;
+    if (!req) return response_set_error(res, 400, "Bad Request");
     char* filename = resolve_path(req->path);
     if (!filename)
-        return build_simple_error(400, "Bad Request");
+        return response_set_error(res, 400, "Bad Request");
 
     char* mime = mime_type(filename);
     printf("mime is: %s, filename is: %s\n", mime, filename);
@@ -203,24 +234,23 @@ http_payload_t HTTP_GET(http_request_t *req) {
     size_t buf_len = 0;
     if (file_to_buffer(filename, &buf, &buf_len) != 0) {
         free(filename);
-        return build_simple_error(404, "Not Found");
+        return response_set_error(res, 404, "Not Found");
     }
 
-    http_response_t res;
-    http_response_init(&res, 200, "OK");
-    http_response_set_body(&res, buf, buf_len, mime);
+    http_response_init(res, 200, "OK");
+    http_response_set_body(res, buf, buf_len, mime);
+    res->body_owned = 1;
 
-    http_payload_t payload = build_response(&res);
-    http_response_clear(&res);
-    free(buf);
     free(filename);
-    return payload;
+    return 1;
 }
 
-http_payload_t HTTP_HEAD(http_request_t *req) {
+int static_head(http_request_t *req, http_response_t *res) {
+    if (!res) return 0;
+    if (!req) return response_set_error(res, 400, "Bad Request");
     char* filename = resolve_path(req->path);
     if (!filename)
-        return build_simple_error(400, "Bad Request");
+        return response_set_error(res, 400, "Bad Request");
 
     char* mime = mime_type(filename);
     printf("mime is: %s, filename is: %s\n", mime, filename);
@@ -228,25 +258,11 @@ http_payload_t HTTP_HEAD(http_request_t *req) {
     struct stat st;
     if (stat(filename, &st) != 0) {
         free(filename);
-        return build_simple_error(404, "Not Found");
+        return response_set_error(res, 404, "Not Found");
     }
 
-    http_response_t res;
-    http_response_init(&res, 200, "OK");
-    http_response_set_body(&res, NULL, (size_t)st.st_size, mime);
-
-    http_payload_t payload = build_response(&res);
-    http_response_clear(&res);
+    http_response_init(res, 200, "OK");
+    http_response_set_body(res, NULL, (size_t)st.st_size, mime);
     free(filename);
-    return payload;
-}
-
-http_payload_t HTTP_POST(http_request_t* req) {
-    (void)req;
-    http_response_t res;
-    http_response_init(&res, 200, "OK");
-    http_response_set_body(&res, (const unsigned char *)"", 0, "text/plain");
-    http_payload_t payload = build_response(&res);
-    http_response_clear(&res);
-    return payload;
+    return 1;
 }
