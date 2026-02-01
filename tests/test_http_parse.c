@@ -50,8 +50,8 @@ static int test_body_without_content_length(void) {
         "hi";
     http_request_t *req = parse_http_request(msg, strlen(msg));
     ASSERT_TRUE(req != NULL);
-    ASSERT_TRUE(req->body_len == 2);
-    ASSERT_TRUE(memcmp(req->body, "hi", 2) == 0);
+    ASSERT_TRUE(req->body_len == 0);
+    ASSERT_TRUE(req->body == NULL);
     free_http_request(req);
     return 0;
 }

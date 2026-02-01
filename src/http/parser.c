@@ -1,5 +1,7 @@
+#include "auth/cookie.h"
 #include "utils/str.h"
 #include <string.h>
+#include "http/body.h"
 #include "http/parser.h"
 
 static void free_request_partial(http_request_t *req) {
@@ -8,6 +10,7 @@ static void free_request_partial(http_request_t *req) {
         free(req->headers[i].name);
         free(req->headers[i].value);
     }
+    http_request_free_parsed_body(req);
     free(req->body);
     free(req);
 }
@@ -16,6 +19,7 @@ static void set_http_method(http_request_t* req, const char* method) {
     if (strcmp(method, "GET") == 0) req->method = HTTP_GET;
     else if (strcmp(method, "POST") == 0) req->method = HTTP_POST;
     else if (strcmp(method, "PUT") == 0) req->method = HTTP_PUT;
+    else if (strcmp(method, "PATCH") == 0) req->method = HTTP_PATCH;
     else if (strcmp(method, "HEAD") == 0) req->method = HTTP_HEAD;
     else if (strcmp(method, "DELETE") == 0) req->method = HTTP_DELETE;
     else req->method = HTTP_UNKNOWN;
@@ -27,6 +31,7 @@ void free_http_request(http_request_t *req) {
         free(req->headers[i].name);
         free(req->headers[i].value);
     }
+    http_request_free_parsed_body(req);
     free(req->body);
     free(req);
 }
@@ -82,6 +87,20 @@ static int find_header_separator(const char *raw, size_t raw_len, size_t *sep_le
     return -1;
 }
 
+static int str_case_contains(const char *haystack, const char *needle) {
+    if (!haystack || !needle || !*needle) return 0;
+    size_t nlen = strlen(needle);
+    for (const char *p = haystack; *p; ++p) {
+        size_t i = 0;
+        while (i < nlen && p[i]
+            && tolower((unsigned char)p[i]) == tolower((unsigned char)needle[i])) {
+            i++;
+        }
+        if (i == nlen) return 1;
+    }
+    return 0;
+}
+
 /* Main parser */
 http_request_t *parse_http_request(const char *raw, size_t raw_len) {
     if (!raw || raw_len == 0) return NULL;
@@ -98,6 +117,11 @@ http_request_t *parse_http_request(const char *raw, size_t raw_len) {
 
     http_request_t *req = calloc(1, sizeof(http_request_t));
     if (!req) { free(buf); return NULL; }
+
+    req->body_kind = BODY_NONE;
+    req->form_items = NULL;
+    req->form_count = 0;
+    req->form_parsed = 0;
 
     char *saveptr = NULL;
     char *line = strtok_r(buf, "\r\n", &saveptr);
@@ -147,8 +171,24 @@ http_request_t *parse_http_request(const char *raw, size_t raw_len) {
         req->header_count++;
     }
 
+    const char* cookie_hdr = http_request_get_header(req, "Cookie");
+    if (cookie_hdr) req->jar = cookie_parse_header(cookie_hdr);
+
     req->body = NULL;
     req->body_len = 0;
+
+    const char *te_hdr = http_request_get_header(req, "Transfer-Encoding");
+    if (te_hdr && str_case_contains(te_hdr, "chunked")) {
+        free_request_partial(req);
+        free(buf);
+        return NULL;
+    }
+
+    if (http_request_detect_body_kind(req) != 0) {
+        free_request_partial(req);
+        free(buf);
+        return NULL;
+    }
 
     const char *cl_hdr = http_request_get_header(req, "Content-Length");
     if (cl_hdr) {
@@ -171,13 +211,6 @@ http_request_t *parse_http_request(const char *raw, size_t raw_len) {
             req->body = malloc(req->body_len);
             if (!req->body) { free_request_partial(req); free(buf); return NULL; }
 
-            memcpy(req->body, raw + body_start, req->body_len);
-        }
-    } else if (body_start < raw_len) {
-        req->body_len = raw_len - body_start;
-        if (req->body_len > 0) {
-            req->body = malloc(req->body_len);
-            if (!req->body) { free_request_partial(req); free(buf); return NULL; }
             memcpy(req->body, raw + body_start, req->body_len);
         }
     }

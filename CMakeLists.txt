@@ -9,8 +9,11 @@ add_library(myserver_lib
     src/worker.c
     src/http/response.c
     src/http/parser.c
+    src/http/body.c
     src/router/router.c
     src/router/handlers.c
+    src/auth/crypto.c
+    src/auth/cookie.c
 )
 
 target_include_directories(myserver_lib PUBLIC include)

@@ -2,7 +2,9 @@
 #include "http/parser.h"
 #include "router/router.h"
 #include "utils/str.h"
+#include <netinet/in.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 
 static void append_header_line(char *out, size_t *offset, const char *name, const char *value) {
@@ -67,7 +69,7 @@ static void http_payload_clear(http_payload_t *payload) {
     payload->length = 0;
 }
 
-static int response_set_error(http_response_t *res, int code, const char *text) {
+int response_set_error(http_response_t *res, int code, const char *text) {
     if (!res) return 0;
     http_response_init(res, code, text);
     http_response_set_body(res, (const unsigned char *)"", 0, "text/plain");
@@ -115,7 +117,7 @@ int build_simple_error(int code, const char *text, http_payload_t *payload) {
 int build_response(http_response_t *res, http_payload_t *payload) {
     if (!res || !payload) return 0;
     http_payload_clear(payload);
-    const char *content_type = res->content_type[0] ? res->content_type : "application/octet-stream";
+    char *content_type = res->content_type[0] ? res->content_type : "application/octet-stream";
 
     char status_line[128];
     int status_len = snprintf(status_line, sizeof(status_line), "HTTP/1.1 %d %s\r\n",
@@ -127,15 +129,16 @@ int build_response(http_response_t *res, http_payload_t *payload) {
         "Content-Length: %zu\r\n", res->body_length);
     if (content_length_len < 0) return 0;
 
+    res->headers[res->header_count].name = strdup("Content-Type");
+    res->headers[res->header_count++].value = strdup(content_type);
+    res->headers[res->header_count].name = strdup("Strict-Transport-Security");
+    res->headers[res->header_count++].value = strdup("max-age=31536000; includeSubDomains");
+
     size_t header_len = (size_t)status_len;
-    header_len += strlen("Content-Type: ") + strlen(content_type) + 2;
     header_len += (size_t)content_length_len;
     for (int i = 0; i < res->header_count; ++i) {
         header_len += strlen(res->headers[i].name) + 2 + strlen(res->headers[i].value) + 2;
     }
-    header_len += strlen("Strict-Transport-Security") + 2
-        + strlen("max-age=31536000; includeSubDomains") + 2;
-    header_len += 2;
 
     size_t total = header_len + res->body_length;
     char *final = malloc(total + 1);
@@ -145,10 +148,8 @@ int build_response(http_response_t *res, http_payload_t *payload) {
     memcpy(final + offset, status_line, (size_t)status_len);
     offset += (size_t)status_len;
 
-    append_header_line(final, &offset, "Content-Type", content_type);
     memcpy(final + offset, content_length_line, (size_t)content_length_len);
     offset += (size_t)content_length_len;
-    append_header_line(final, &offset, "Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     
     for (int i = 0; i < res->header_count; ++i) {
         append_header_line(final, &offset, res->headers[i].name, res->headers[i].value);

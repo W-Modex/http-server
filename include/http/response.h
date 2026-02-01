@@ -29,6 +29,7 @@ int http_response_add_header(http_response_t *res, const char *name, const char 
 void http_response_set_body(http_response_t *res, const unsigned char *body, size_t body_length, const char *content_type);
 void http_response_clear(http_response_t *res);
 
+int response_set_error(http_response_t *res, int code, const char *text);
 int handle_response(http_request_t* req, http_payload_t* payload);
 int build_response(http_response_t *res, http_payload_t* payload);
 int build_simple_error(int code, const char *text, http_payload_t* payload);

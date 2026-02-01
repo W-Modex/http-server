@@ -24,5 +24,6 @@ int router_dispatch(http_request_t *req, http_response_t *res) {
     if (!req || !res) return 0;
     const route_t* route = router_find(req->method, req->path);
     if (!route) return 0;
+    
     return route->handler(req, res) ? 1 : -1;
 }
