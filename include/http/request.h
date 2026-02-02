@@ -3,6 +3,8 @@
 
 #include "auth/cookie.h"
 #include "utils/str.h"
+#include <bits/pthreadtypes.h>
+#include <stddef.h>
 
 typedef struct {
     char *name;
@@ -25,6 +27,23 @@ typedef enum {
     BODY_JSON,
     BODY_UNSUPPORTED
 } body_kind_t;
+
+typedef struct session {
+    unsigned char sid[32];
+    unsigned char csrf_secret[32];
+    uint64_t uid;
+    uint64_t created_at;
+    uint64_t last_seen;
+    uint64_t expires_at;
+
+    struct session* next;
+} session_t;
+
+typedef struct s_list {
+    session_t* buckets[MAX_SESSION_BUCKET];
+    int count;
+    pthread_mutex_t s_lock;
+} s_list_t;
 
 struct form_kv {
     char *key;
@@ -50,6 +69,8 @@ typedef struct {
     struct form_kv *form_items;
     size_t form_count;
     int form_parsed;
+
+    session_t session;
 } http_request_t;
 
 http_request_t* parse_http_request(const char *raw, size_t raw_len);

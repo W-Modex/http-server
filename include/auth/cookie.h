@@ -41,6 +41,6 @@ typedef struct {
 cookie_jar_t *cookie_parse_header(const char *header_value);
 const char *cookie_jar_get(const cookie_jar_t *jar, const char *name);
 void cookie_jar_free(cookie_jar_t *jar);
-char *cookie_build_set_cookie_value(const char *name, const char *value, const cookie_settings_t *settings);
+char *build_set_cookie_value(const char *name, const char *value, const cookie_settings_t *settings);
 
 #endif

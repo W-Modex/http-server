@@ -2,7 +2,7 @@
 #include "utils/str.h"
 #include <string.h>
 #include "http/body.h"
-#include "http/parser.h"
+#include "http/request.h"
 
 static void free_request_partial(http_request_t *req) {
     if (!req) return;

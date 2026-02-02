@@ -3,7 +3,6 @@
 #include <sys/poll.h>
 #include "worker.h"
 #include "http/response.h"
-#include "http/parser.h"
 
 void q_push(job_queue_t *q, job_t* j) {
     if (!q->tail) {

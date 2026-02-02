@@ -8,6 +8,7 @@ const route_t ROUTES[] = {
     {HTTP_GET, "/", 0, static_get}, 
     {HTTP_GET, "/login", 0, static_get},
     {HTTP_POST, "/login", 0, post_login},
+    {HTTP_GET, "/signup", 0, static_get},
 };
 
 const size_t ROUTES_COUNT = sizeof(ROUTES)/sizeof(ROUTES[0]);

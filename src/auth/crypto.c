@@ -37,7 +37,7 @@ static int hex_nibble(char c) {
     return -1;
 }
 
-static int hex_encode(const unsigned char *in, size_t in_len, char *out, size_t out_len) {
+int hex_encode(const unsigned char *in, size_t in_len, char *out, size_t out_len) {
     static const char *hex = "0123456789abcdef";
     if (!in || !out) return -1;
     if (out_len < (in_len * 2 + 1)) return -1;
@@ -49,7 +49,7 @@ static int hex_encode(const unsigned char *in, size_t in_len, char *out, size_t 
     return 0;
 }
 
-static int hex_decode(const char *hex_str, unsigned char *out, size_t out_len) {
+int hex_decode(const char *hex_str, unsigned char *out, size_t out_len) {
     if (!hex_str || !out) return -1;
     size_t hex_len = strlen(hex_str);
     if (hex_len != out_len * 2) return -1;

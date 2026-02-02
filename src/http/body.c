@@ -1,5 +1,4 @@
 #include "http/body.h"
-#include "utils/str.h"
 #include <ctype.h>
 
 #define MAX_FORM_PAIRS 256

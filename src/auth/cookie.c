@@ -199,7 +199,7 @@ void cookie_jar_free(cookie_jar_t *jar) {
     free(jar);
 }
 
-char *cookie_build_set_cookie_value(const char *name, const char *value, const cookie_settings_t *settings) {
+char *build_set_cookie_value(const char *name, const char *value, const cookie_settings_t *settings) {
     if (!name || !*name || !value) return NULL;
 
     cookie_settings_t opts = {0};

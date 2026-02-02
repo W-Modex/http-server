@@ -1,8 +1,8 @@
 #include "http/response.h"
-#include "http/parser.h"
 #include "router/router.h"
 #include "utils/str.h"
 #include <netinet/in.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -139,7 +139,8 @@ int build_response(http_response_t *res, http_payload_t *payload) {
     for (int i = 0; i < res->header_count; ++i) {
         header_len += strlen(res->headers[i].name) + 2 + strlen(res->headers[i].value) + 2;
     }
-
+    header_len += 2;
+    
     size_t total = header_len + res->body_length;
     char *final = malloc(total + 1);
     if (!final) return 0;
@@ -214,10 +215,13 @@ int handle_response(http_request_t* req, http_payload_t* payload) {
     if (routed <= 0) return build_simple_error(500, "Internal Server Error", payload);
 
     int ok = build_response(&res, payload);
+
     if (res.body_owned && res.body) {
         free((void *)res.body);
     }
+
     http_response_clear(&res);
+
     return ok;
 }
 
@@ -237,11 +241,10 @@ int static_get(http_request_t *req, http_response_t *res) {
         free(filename);
         return response_set_error(res, 404, "Not Found");
     }
-
     http_response_init(res, 200, "OK");
     http_response_set_body(res, buf, buf_len, mime);
     res->body_owned = 1;
-
+    
     free(filename);
     return 1;
 }

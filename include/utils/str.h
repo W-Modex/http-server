@@ -17,6 +17,8 @@
 #define MAX_REQUEST_SIZE  16384
 #define MAX_RESPONSE_SIZE 16384
 #define MAX_BUFFER        4096
+#define MAX_SESSION_BUCKET 4096
+#define MAX_SESSION_SIZE  100000
 
 static inline void DIE(const char *fmt, ...) {
     va_list args;

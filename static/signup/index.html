@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create account | Modex HTTP Lab</title>
+    <link rel="stylesheet" href="signup/index.css" />
+</head>
+<body>
+    <main class="auth-wrap">
+        <section class="card auth-card">
+            <header class="auth-header">
+                <a class="brand brand--small" href="/">
+                    <span class="brand-mark" aria-hidden="true">MH</span>
+                    <span class="brand-name">Modex HTTP Lab</span>
+                </a>
+                <h1 class="auth-title">Create account</h1>
+                <p class="muted">Join the lab and start testing the endpoints.</p>
+            </header>
+            <form class="form" method="post" action="/signup">
+                <div class="field">
+                    <label class="label" for="username">Username</label>
+                    <input class="input" type="text" id="username" name="username" autocomplete="username" required />
+                </div>
+                <div class="field">
+                    <label class="label" for="email">Email</label>
+                    <input class="input" type="email" id="email" name="email" autocomplete="email" required />
+                </div>
+                <div class="field">
+                    <label class="label" for="password">Password</label>
+                    <input class="input" type="password" id="password" name="password" autocomplete="new-password" required />
+                </div>
+                <div class="field">
+                    <label class="label" for="confirm-password">Confirm password</label>
+                    <input class="input" type="password" id="confirm-password" name="confirm-password" autocomplete="new-password" required />
+                </div>
+                <p class="form-msg" role="status" aria-live="polite">Form feedback appears here.</p>
+                <button class="btn btn--primary" type="submit">Sign up</button>
+            </form>
+            <p class="switch muted">Already have an account? <a class="link" href="/login">Login</a></p>
+        </section>
+    </main>
+</body>
+</html>

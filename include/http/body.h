@@ -1,7 +1,7 @@
 #ifndef HTTP_BODY_H
 #define HTTP_BODY_H
 
-#include "http/parser.h"
+#include "http/request.h"
 
 int http_request_detect_body_kind(http_request_t* req);
 int http_request_parse_form(http_request_t* req);

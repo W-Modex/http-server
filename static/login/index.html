@@ -1,19 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-    <link rel="stylesheet" href="index.css">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login | Modex HTTP Lab</title>
+    <link rel="stylesheet" href="login/index.css" />
 </head>
 <body>
-    <form action="/login" method="POST">
-        <h2>Login</h2>
-        <label for="username">Username:</label><br>
-        <input type="text" id="fusername" name="username"><br>
-        <label for="password">password:</label><br>
-        <input type="password" id="password" name="password">
-        <button type="submit">login</button>   
-    </form>
+    <main class="auth-wrap">
+        <section class="card auth-card">
+            <header class="auth-header">
+                <a class="brand brand--small" href="/">
+                    <span class="brand-mark" aria-hidden="true">MH</span>
+                    <span class="brand-name">Modex HTTP Lab</span>
+                </a>
+                <h1 class="auth-title">Login</h1>
+                <p class="muted">Welcome back. Enter your details to continue.</p>
+            </header>
+            <form class="form" method="post" action="/login">
+                <div class="field">
+                    <label class="label" for="email">Email</label>
+                    <input class="input" type="email" id="email" name="email" autocomplete="email" required />
+                </div>
+                <div class="field">
+                    <label class="label" for="password">Password</label>
+                    <input class="input" type="password" id="password" name="password" autocomplete="current-password" required />
+                </div>
+                <p class="form-msg" role="status" aria-live="polite">Form feedback appears here.</p>
+                <button class="btn btn--primary" type="submit">Login</button>
+            </form>
+            <p class="switch muted">Don't have an account? <a class="link" href="/signup">Sign up</a></p>
+        </section>
+    </main>
 </body>
 </html>

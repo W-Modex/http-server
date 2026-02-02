@@ -1,22 +1,35 @@
 #ifndef RESPONDER_H
 #define RESPONDER_H
 
-#include "http/parser.h"
+#include "http/request.h"
+#include <stdint.h>
 
 typedef struct {
     char *name;
     char *value;
 } http_response_header_t;
 
+typedef struct User {
+    uint64_t id;
+    char username[64];
+    char password_hash[64];
+    struct User* next;
+} user_t;
+
 typedef struct {
     int status_code;
     char status_text[64];
+
     char content_type[64];
+
     http_response_header_t headers[MAX_RESPONSE_HEADERS];
     int header_count;
+
     int body_owned;
     const unsigned char *body;
     size_t body_length;
+
+    user_t user;
 } http_response_t;
 
 typedef struct {
