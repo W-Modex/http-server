@@ -2,6 +2,8 @@
 #define RESPONDER_H
 
 #include "http/request.h"
+#include "utils/str.h"
+#include <bits/pthreadtypes.h>
 #include <stdint.h>
 
 typedef struct {
@@ -11,10 +13,24 @@ typedef struct {
 
 typedef struct User {
     uint64_t id;
-    char username[64];
-    char password_hash[64];
-    struct User* next;
+    char* username;
+    char* email;
+    char* password_hash;
 } user_t;
+
+typedef struct u_entry {
+    const char* key;
+    uint64_t id;
+    struct u_entry* next;
+} u_entry_t;
+
+typedef struct u_store {
+    u_entry_t* by_username[MAX_USER_BUCKET];
+    u_entry_t* by_email[MAX_USER_BUCKET];
+    user_t users[MAX_USER_SIZE];
+    int count;
+    pthread_mutex_t u_lock;
+} u_store_t;
 
 typedef struct {
     int status_code;
@@ -43,6 +59,7 @@ void http_response_set_body(http_response_t *res, const unsigned char *body, siz
 void http_response_clear(http_response_t *res);
 
 int response_set_error(http_response_t *res, int code, const char *text);
+int response_set_redirect(http_response_t *res, int code, const char *location);
 int handle_response(http_request_t* req, http_payload_t* payload);
 int build_response(http_response_t *res, http_payload_t* payload);
 int build_simple_error(int code, const char *text, http_payload_t* payload);

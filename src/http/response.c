@@ -76,6 +76,26 @@ int response_set_error(http_response_t *res, int code, const char *text) {
     return 1;
 }
 
+static const char *redirect_status_text(int code) {
+    switch (code) {
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
+        case 303: return "See Other";
+        case 307: return "Temporary Redirect";
+        case 308: return "Permanent Redirect";
+        default: return "Redirect";
+    }
+}
+
+int response_set_redirect(http_response_t *res, int code, const char *location) {
+    if (!res || !location || !*location) return 0;
+    if (code == 0) code = 302;
+    http_response_init(res, code, redirect_status_text(code));
+    http_response_set_body(res, (const unsigned char *)"", 0, "text/plain");
+    if (http_response_add_header(res, "Location", location) != 0) return 0;
+    return 1;
+}
+
 int is_https_request(int is_ssl, const http_request_t *req) {
     if (is_ssl) return 1;
     if (!req) return 0;
@@ -95,9 +115,10 @@ int build_https_redirect(const http_request_t *req, http_payload_t *payload) {
     snprintf(location, loc_len, "https://%s%s", host, req->path);
 
     http_response_t res;
-    http_response_init(&res, 308, "Permanent Redirect");
-    http_response_set_body(&res, (const unsigned char *)"", 0, "text/plain");
-    http_response_add_header(&res, "Location", location);
+    if (!response_set_redirect(&res, 308, location)) {
+        free(location);
+        return 0;
+    }
     int ok = build_response(&res, payload);
     http_response_clear(&res);
     free(location);

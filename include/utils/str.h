@@ -19,6 +19,8 @@
 #define MAX_BUFFER        4096
 #define MAX_SESSION_BUCKET 4096
 #define MAX_SESSION_SIZE  100000
+#define MAX_USER_BUCKET 4096
+#define MAX_USER_SIZE  100000
 
 static inline void DIE(const char *fmt, ...) {
     va_list args;
