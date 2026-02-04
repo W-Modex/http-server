@@ -117,3 +117,23 @@ int post_signup(http_request_t* req, http_response_t* res) {
 
     return 1;
 }
+
+int post_logout(http_request_t* req, http_response_t* res) {
+    if (!req || !res) return 0;
+
+    int has_session = req->session.created_at != 0;
+    if (!has_session) {
+        has_session = get_session(req) != 0;
+    }
+
+    if (has_session && destroy_session(req->session.sid) == 0)
+        return response_set_error(res, 500, "Destroy Server Error");
+
+    if (!response_set_redirect(res, 302, "/login"))
+        return 0;
+
+    if (clear_sid_cookie(res) == 0)
+        return response_set_error(res, 500, "Clear Server Error");
+
+    return 1;
+}

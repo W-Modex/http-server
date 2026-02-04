@@ -1,8 +1,51 @@
 #include "auth/cookie.h"
 #include "utils/str.h"
+#include <ctype.h>
+#include <stdint.h>
 #include <string.h>
 
 #define MAX_COOKIE_PAIRS 256
+#define MAX_COOKIE_NAME_LEN 256
+#define MAX_COOKIE_VALUE_LEN 4096
+#define MAX_COOKIE_HEADER_LEN MAX_REQUEST_SIZE
+
+static int cookie_name_valid(const char *name) {
+    if (!name || !*name) return 0;
+    size_t len = 0;
+    for (const unsigned char *p = (const unsigned char *)name; *p; ++p) {
+        unsigned char ch = *p;
+        if (!(isalnum(ch) || ch == '!' || ch == '#' || ch == '$' || ch == '%' ||
+              ch == '&' || ch == '\'' || ch == '*' || ch == '+' || ch == '-' ||
+              ch == '.' || ch == '^' || ch == '_' || ch == '`' || ch == '|' ||
+              ch == '~')) {
+            return 0;
+        }
+        if (++len > MAX_COOKIE_NAME_LEN) return 0;
+    }
+    return 1;
+}
+
+static int cookie_value_valid_unquoted(const char *value) {
+    size_t len = 0;
+    for (const unsigned char *p = (const unsigned char *)value; *p; ++p) {
+        unsigned char ch = *p;
+        if (ch <= 0x20 || ch >= 0x7f || ch == ';' || ch == ',' || ch == '"' || ch == '\\') {
+            return 0;
+        }
+        if (++len > MAX_COOKIE_VALUE_LEN) return 0;
+    }
+    return 1;
+}
+
+static int cookie_value_valid_unescaped(const char *value) {
+    size_t len = 0;
+    for (const unsigned char *p = (const unsigned char *)value; *p; ++p) {
+        unsigned char ch = *p;
+        if (ch <= 0x1f || ch == 0x7f) return 0;
+        if (++len > MAX_COOKIE_VALUE_LEN) return 0;
+    }
+    return 1;
+}
 
 static void cookie_jar_free_items(cookie_jar_t *jar) {
     if (!jar) return;
@@ -88,11 +131,18 @@ cookie_jar_t *cookie_parse_header(const char *header_value) {
 
     if (!header_value || !*header_value) return jar;
 
-    char *buf = strdup(header_value);
+    size_t header_len = strlen(header_value);
+    if (header_len > MAX_COOKIE_HEADER_LEN) {
+        free(jar);
+        return NULL;
+    }
+
+    char *buf = malloc(header_len + 1);
     if (!buf) {
         free(jar);
         return NULL;
     }
+    memcpy(buf, header_value, header_len + 1);
 
     size_t count = 0;
     size_t capacity = 0;
@@ -121,6 +171,22 @@ cookie_jar_t *cookie_parse_header(const char *header_value) {
             value = name + strlen(name);
         }
         if (*name == '\0') {
+            part = strtok_r(NULL, ";", &saveptr);
+            continue;
+        }
+        if (!cookie_name_valid(name)) {
+            part = strtok_r(NULL, ";", &saveptr);
+            continue;
+        }
+
+        size_t value_len = strlen(value);
+        if (value_len > (MAX_COOKIE_VALUE_LEN * 2 + 2)) {
+            part = strtok_r(NULL, ";", &saveptr);
+            continue;
+        }
+        if (value_len > 0 && value[0] == '"' && value[value_len - 1] == '"') {
+            /* allow quoted values, validate after unescape */
+        } else if (!cookie_value_valid_unquoted(value)) {
             part = strtok_r(NULL, ";", &saveptr);
             continue;
         }
@@ -154,10 +220,24 @@ cookie_jar_t *cookie_parse_header(const char *header_value) {
             free(jar);
             return NULL;
         }
+        if (!cookie_value_valid_unescaped(value_copy)) {
+            free(name_copy);
+            free(value_copy);
+            part = strtok_r(NULL, ";", &saveptr);
+            continue;
+        }
 
         if (count == capacity) {
             size_t new_cap = capacity ? capacity * 2 : 8;
             if (new_cap > MAX_COOKIE_PAIRS) new_cap = MAX_COOKIE_PAIRS;
+            if (new_cap > SIZE_MAX / sizeof(*jar->items)) {
+                free(name_copy);
+                free(value_copy);
+                free(buf);
+                cookie_jar_free_items(jar);
+                free(jar);
+                return NULL;
+            }
             cookie_kv_t *items = realloc(jar->items, new_cap * sizeof(*items));
             if (!items) {
                 free(name_copy);

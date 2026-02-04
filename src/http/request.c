@@ -10,6 +10,7 @@ static void free_request_partial(http_request_t *req) {
         free(req->headers[i].name);
         free(req->headers[i].value);
     }
+    cookie_jar_free(req->jar);
     http_request_free_parsed_body(req);
     free(req->body);
     free(req);
@@ -31,6 +32,7 @@ void free_http_request(http_request_t *req) {
         free(req->headers[i].name);
         free(req->headers[i].value);
     }
+    cookie_jar_free(req->jar);
     http_request_free_parsed_body(req);
     free(req->body);
     free(req);

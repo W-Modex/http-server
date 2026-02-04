@@ -6,25 +6,12 @@
 #include <pthread.h>
 #include <unistd.h>
 
-void process_connections(cxt_t* cxt, int listener, int ssl_listener) {
-    struct pollfd *local_pfds = NULL;
-    int local_fdcount = 0;
+void process_connections(cxt_t* cxt, int listener, int ssl_listener, const struct pollfd* pfds, int fdcount) {
+    if (!pfds || fdcount <= 0) return;
 
-    pthread_mutex_lock(&cxt->pfds_lock);
-    local_fdcount = cxt->fdcount;
-    if (local_fdcount > 0) {
-        local_pfds = malloc(sizeof(struct pollfd) * local_fdcount);
-        if (local_pfds) {
-            memcpy(local_pfds, cxt->pfds, sizeof(struct pollfd) * local_fdcount);
-        }
-    }
-    pthread_mutex_unlock(&cxt->pfds_lock);
-
-    if (!local_pfds) return;
-
-    for (int i = 0; i < local_fdcount; ++i) {
-        short re = local_pfds[i].revents;
-        int fd = local_pfds[i].fd;
+    for (int i = 0; i < fdcount; ++i) {
+        short re = pfds[i].revents;
+        int fd = pfds[i].fd;
 
         if (re & (POLLIN | POLLOUT)) {
             if (fd == listener) {
@@ -40,7 +27,6 @@ void process_connections(cxt_t* cxt, int listener, int ssl_listener) {
         }
     }
 
-    free(local_pfds);
 }
 
 void add_connection(cxt_t* cxt, int listener, int is_ssl) {
@@ -123,6 +109,12 @@ void add_connection(cxt_t* cxt, int listener, int is_ssl) {
 }
 
 void handle_client_read(cxt_t* cxt, int client_fd) {
+    pthread_mutex_lock(&cxt->q->lock);
+    while (cxt->q->len >= cxt->q->max) {
+        pthread_cond_wait(&cxt->q->not_full, &cxt->q->lock);
+    }
+    pthread_mutex_unlock(&cxt->q->lock);
+
     pthread_mutex_lock(&cxt->pfds_lock);
     int bytes_recv = -1;
     int idx = -1;

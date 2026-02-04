@@ -18,8 +18,11 @@ typedef struct job {
 typedef struct job_queue{
     job_t* head;
     job_t* tail;
+    size_t len;
+    size_t max;
     pthread_mutex_t lock;
     pthread_cond_t cond;
+    pthread_cond_t not_full;
 } job_queue_t;
 
 typedef struct client {

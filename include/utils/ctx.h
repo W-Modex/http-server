@@ -29,8 +29,11 @@ static inline cxt_t* init_ctx(int listener, int ssl_listener) {
     if (!queue) DIE("malloc queue");
     queue->head = NULL;
     queue->tail = NULL;
+    queue->len = 0;
+    queue->max = MAX_JOB_QUEUE;
     if (pthread_mutex_init(&queue->lock, NULL) != 0) DIE("mutex init");
     if (pthread_cond_init(&queue->cond, NULL) != 0) DIE("cond init");
+    if (pthread_cond_init(&queue->not_full, NULL) != 0) DIE("cond init");
 
     struct pollfd *pfds = calloc(worker_cxt->fdsize, sizeof(struct pollfd));
     if (!pfds) DIE("calloc pfds");

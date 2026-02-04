@@ -2,6 +2,8 @@
 #include "utils/ctx.h"
 #include "worker.h"
 #include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define WORKER_COUNT 15
 
@@ -23,9 +25,27 @@ int main(int argc, char** argv) {
     }
 
     while (1) {
-        int poll_count = poll(ctx->pfds, ctx->fdcount, 100);
+        struct pollfd *pfds_snapshot = NULL;
+        int fdcount_snapshot = 0;
+
+        pthread_mutex_lock(&ctx->pfds_lock);
+        fdcount_snapshot = ctx->fdcount;
+        if (fdcount_snapshot > 0) {
+            pfds_snapshot = malloc(sizeof(struct pollfd) * fdcount_snapshot);
+            if (pfds_snapshot) {
+                memcpy(pfds_snapshot, ctx->pfds, sizeof(struct pollfd) * fdcount_snapshot);
+            }
+        }
+        pthread_mutex_unlock(&ctx->pfds_lock);
+
+        if (!pfds_snapshot) {
+            continue;
+        }
+
+        int poll_count = poll(pfds_snapshot, fdcount_snapshot, 100);
         if (poll_count == -1) DIE("poll");
-        process_connections(ctx, listener, ssl_listener);
+        process_connections(ctx, listener, ssl_listener, pfds_snapshot, fdcount_snapshot);
+        free(pfds_snapshot);
     }
 
     free(ctx->pfds);

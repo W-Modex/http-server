@@ -8,10 +8,13 @@
 
 const route_t ROUTES[] = {
     {HTTP_GET, "/", AUTH_REQUIRED, static_get}, 
+    {HTTP_GET, "/chat", AUTH_REQUIRED, static_get}, 
+    {HTTP_GET, "/about", AUTH_REQUIRED, static_get},
     {HTTP_GET, "/login", 0, static_get},
     {HTTP_POST, "/login", CSRF_REQUIRED, post_login},
     {HTTP_GET, "/signup", 0, static_get},
     {HTTP_POST, "/signup", CSRF_REQUIRED, post_signup},
+    {HTTP_POST, "/logout", AUTH_REQUIRED, post_logout},
 };
 
 const size_t ROUTES_COUNT = sizeof(ROUTES)/sizeof(ROUTES[0]);
@@ -30,14 +33,13 @@ int router_dispatch(http_request_t *req, http_response_t *res) {
     const route_t* route = router_find(req->method, req->path);
     if (!route) return 0;
 
-    if (route->flags & AUTH_REQUIRED) {
-        if (get_session(req) < 0)
-            return response_set_redirect(res, 302, "/login");
-    } else {
-        if (get_session(req) == 0)
-            return response_set_redirect(res, 302, "/");
-    }
+    int ok = get_session(req);
 
+    if ((route->flags & AUTH_REQUIRED) && !ok) 
+        return response_set_redirect(res, 302, "/login");
+    
+    if (!(route->flags & AUTH_REQUIRED) && ok)
+        return response_set_redirect(res, 302, "/");
 
     
     return route->handler(req, res) ? 1 : -1;

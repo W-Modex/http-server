@@ -12,13 +12,16 @@ void q_push(job_queue_t *q, job_t* j) {
         q->tail->next = j;
         q->tail = j;
     }
+    q->len++;
 }
 
 job_t* q_pop(job_queue_t *q) {
+    if (!q->head) return NULL;
     job_t* j = q->head;
     q->head = j->next;
     if (q->head == 0) 
         q->tail = 0;
+    if (q->len > 0) q->len--;
     return j;
 }
 
@@ -29,6 +32,7 @@ void* process_jobs(void* arg) {
         while (!cxt->q->tail)
             pthread_cond_wait(&cxt->q->cond, &cxt->q->lock);
         job_t* j = q_pop(cxt->q);
+        pthread_cond_signal(&cxt->q->not_full);
         pthread_mutex_unlock(&cxt->q->lock);
         if (!j) continue;
         http_request_t* req = parse_http_request(j->data, j->data_len);
@@ -54,6 +58,7 @@ void* process_jobs(void* arg) {
              
         if (req) free_http_request(req);
         setup_write(cxt, payload, j);
+        free(payload);
         free(j->data);
         free(j);
     }

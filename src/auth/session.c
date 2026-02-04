@@ -134,7 +134,7 @@ int create_session( http_request_t* req, uint64_t uid) {
 }
 
 int destroy_session(unsigned char *sid) {
-    if (!sid) return -1;
+    if (!sid) return 0;
 
     pthread_mutex_lock(&session_store.s_lock);
     size_t bucket = 0;
@@ -142,23 +142,23 @@ int destroy_session(unsigned char *sid) {
     session_t *cur = session_find_locked(sid, &bucket, &prev);
     if (!cur) {
         pthread_mutex_unlock(&session_store.s_lock);
-        return -1;
+        return 0;
     }
 
     unlink_session_locked(bucket, prev, cur);
     pthread_mutex_unlock(&session_store.s_lock);
     free(cur);
-    return 0;
+    return 1;
 }
 
 int get_session(http_request_t *req) {
-    if (!req || !req->jar) return -1;
+    if (!req || !req->jar) return 0;
 
     const char *sid_hex = cookie_jar_get(req->jar, SESSION_COOKIE_NAME);
-    if (!sid_hex || !*sid_hex) return -1;
+    if (!sid_hex || !*sid_hex) return 0;
 
     unsigned char sid[SESSION_ID_LEN];
-    if (hex_decode(sid_hex, sid, SESSION_ID_LEN) != 0) return -1;
+    if (hex_decode(sid_hex, sid, SESSION_ID_LEN) != 0) return 0;
 
     pthread_mutex_lock(&session_store.s_lock);
     size_t bucket = 0;
@@ -166,7 +166,7 @@ int get_session(http_request_t *req) {
     session_t *cur = session_find_locked(sid, &bucket, &prev);
     if (!cur) {
         pthread_mutex_unlock(&session_store.s_lock);
-        return -1;
+        return 0;
     }
 
     uint64_t now = (uint64_t)time(NULL);
@@ -174,7 +174,7 @@ int get_session(http_request_t *req) {
         unlink_session_locked(bucket, prev, cur);
         pthread_mutex_unlock(&session_store.s_lock);
         free(cur);
-        return -1;
+        return 0;
     }
 
     cur->last_seen = now;
@@ -182,11 +182,11 @@ int get_session(http_request_t *req) {
     req->session.next = NULL;
 
     pthread_mutex_unlock(&session_store.s_lock);
-    return 0;
+    return 1;
 }
 
 int rotate_session(http_request_t *req) {
-    if (!req) return -1;
+    if (!req) return 0;
 
     unsigned char sid[SESSION_ID_LEN];
     int has_sid = 0;
@@ -201,7 +201,7 @@ int rotate_session(http_request_t *req) {
         }
     }
 
-    if (!has_sid) return -1;
+    if (!has_sid) return 0;
 
     pthread_mutex_lock(&session_store.s_lock);
     size_t old_bucket = 0;
@@ -209,7 +209,7 @@ int rotate_session(http_request_t *req) {
     session_t *cur = session_find_locked(sid, &old_bucket, &prev);
     if (!cur) {
         pthread_mutex_unlock(&session_store.s_lock);
-        return -1;
+        return 0;
     }
 
     uint64_t now = (uint64_t)time(NULL);
@@ -217,7 +217,7 @@ int rotate_session(http_request_t *req) {
         unlink_session_locked(old_bucket, prev, cur);
         pthread_mutex_unlock(&session_store.s_lock);
         free(cur);
-        return -1;
+        return 0;
     }
 
     unsigned char new_sid[SESSION_ID_LEN];
@@ -233,7 +233,7 @@ int rotate_session(http_request_t *req) {
     }
     if (!found) {
         pthread_mutex_unlock(&session_store.s_lock);
-        return -1;
+        return 0;
     }
 
     unlink_session_locked(old_bucket, prev, cur);
@@ -247,7 +247,7 @@ int rotate_session(http_request_t *req) {
     req->session.next = NULL;
 
     pthread_mutex_unlock(&session_store.s_lock);
-    return 0;
+    return 1;
 }
 
 int create_user(http_request_t *req, http_response_t *res) {
@@ -315,21 +315,26 @@ int create_user(http_request_t *req, http_response_t *res) {
 int get_user(http_request_t *req, http_response_t *res) {
     if (!req || !res) return 0;
 
-    const char *email = http_request_form_get(req, "email");
-    const char *username = http_request_form_get(req, "username");
+    const char *id = http_request_form_get(req, "id");
     const char *password = http_request_form_get(req, "password");
-    if ((!email || !*email) && (!username || !*username)) return 0;
-    if (!password || !*password) return 0;
+    int has_fields = (id && *id) || (password && *password);
+    int use_session_lookup = !has_fields;
+    if (!use_session_lookup) {
+        if (!id || !*id) return 0;
+        if (!password || !*password) return 0;
+    }
 
     user_t *user = NULL;
     pthread_mutex_lock(&user_store->u_lock);
-    if (email && *email) {
-        u_entry_t *entry = user_entry_lookup_locked(user_store->by_email, email);
-        if (entry && entry->id < (uint64_t)user_store->count) {
-            user = &user_store->users[entry->id];
+    if (use_session_lookup) {
+        if (req->session.created_at != 0 && req->session.uid < (uint64_t)user_store->count) {
+            user = &user_store->users[req->session.uid];
         }
     } else {
-        u_entry_t *entry = user_entry_lookup_locked(user_store->by_username, username);
+        u_entry_t *entry = user_entry_lookup_locked(user_store->by_email, id);
+        if (!entry) {
+            entry = user_entry_lookup_locked(user_store->by_username, id);
+        }
         if (entry && entry->id < (uint64_t)user_store->count) {
             user = &user_store->users[entry->id];
         }
@@ -337,7 +342,7 @@ int get_user(http_request_t *req, http_response_t *res) {
     pthread_mutex_unlock(&user_store->u_lock);
 
     if (!user || !user->password_hash) return 0;
-    if (password_verify(password, user->password_hash) != 1) return 0;
+    if (!use_session_lookup && password_verify(password, user->password_hash) != 1) return 0;
 
     res->user = *user;
     return 1;
