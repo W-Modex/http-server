@@ -132,58 +132,22 @@ int csrf_maybe_inject(http_request_t *req, http_response_t *res) {
     size_t needle_len = strlen(needle);
     if (needle_len == 0 || res->body_length < needle_len) return 1;
 
-    size_t count = 0;
-    for (size_t i = 0; i + needle_len <= res->body_length; ) {
-        if (memcmp(res->body + i, needle, needle_len) == 0) {
-            count++;
-            i += needle_len;
-        } else {
-            i++;
-        }
-    }
-    if (count == 0) return 1;
-
     char token[CSRF_TOKEN_HEX_LEN + 1];
     const char *replacement = "";
-    size_t repl_len = 0;
     if (req->session.created_at != 0 && csrf_token_hex(&req->session, token, sizeof(token))) {
         replacement = token;
-        repl_len = CSRF_TOKEN_HEX_LEN;
     }
 
-    size_t new_len = res->body_length;
-    if (repl_len >= needle_len) {
-        new_len += count * (repl_len - needle_len);
-    } else {
-        new_len -= count * (needle_len - repl_len);
+    unsigned char *new_body = NULL;
+    size_t new_len = 0;
+    if (!replace_all(res->body, res->body_length, needle, replacement, &new_body, &new_len)) {
+        return 0;
     }
+    if (!new_body) return 1;
 
-    size_t alloc_len = new_len ? new_len : 1;
-    unsigned char *buf = malloc(alloc_len);
-    if (!buf) return 0;
-
-    size_t src_i = 0;
-    size_t dst_i = 0;
-    while (src_i + needle_len <= res->body_length) {
-        if (memcmp(res->body + src_i, needle, needle_len) == 0) {
-            if (repl_len > 0) {
-                memcpy(buf + dst_i, replacement, repl_len);
-                dst_i += repl_len;
-            }
-            src_i += needle_len;
-        } else {
-            buf[dst_i++] = res->body[src_i++];
-        }
-    }
-    while (src_i < res->body_length) {
-        buf[dst_i++] = res->body[src_i++];
-    }
-
-    if (res->body_owned && res->body) {
-        free((void *)res->body);
-    }
-    res->body = buf;
-    res->body_length = dst_i;
+    if (res->body_owned && res->body) free((void *)res->body);
+    res->body = new_body;
+    res->body_length = new_len;
     res->body_owned = 1;
     return 1;
 }

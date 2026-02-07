@@ -60,6 +60,7 @@ void http_response_clear(http_response_t *res);
 
 int response_set_error(http_response_t *res, int code, const char *text);
 int response_set_redirect(http_response_t *res, int code, const char *location);
+int render_html(http_request_t *req, http_response_t *res);
 int handle_response(http_request_t* req, http_payload_t* payload);
 int build_response(http_response_t *res, http_payload_t* payload);
 int build_simple_error(int code, const char *text, http_payload_t* payload);

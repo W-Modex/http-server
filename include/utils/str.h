@@ -80,6 +80,65 @@ static inline int endswith(char* str, char* t) {
     else return 0;
 }
 
+static inline int replace_all(const unsigned char *buf, size_t len,
+                              const char *needle, const char *replacement,
+                              unsigned char **out, size_t *out_len) {
+    if (!buf || !needle || !replacement || !out || !out_len) return 0;
+    *out = NULL;
+    *out_len = 0;
+
+    size_t needle_len = strlen(needle);
+    if (needle_len == 0) return 0;
+    if (len < needle_len) return 1;
+
+    size_t repl_len = strlen(replacement);
+    size_t count = 0;
+    for (size_t i = 0; i + needle_len <= len; ) {
+        if (memcmp(buf + i, needle, needle_len) == 0) {
+            count++;
+            i += needle_len;
+        } else {
+            i++;
+        }
+    }
+    if (count == 0) return 1;
+
+    size_t new_len = len;
+    if (repl_len >= needle_len) {
+        size_t diff = repl_len - needle_len;
+        if (diff > 0 && count > (SIZE_MAX - len) / diff) return 0;
+        new_len += count * diff;
+    } else {
+        size_t diff = needle_len - repl_len;
+        new_len -= count * diff;
+    }
+
+    size_t alloc_len = new_len ? new_len : 1;
+    unsigned char *dst = malloc(alloc_len);
+    if (!dst) return 0;
+
+    size_t src_i = 0;
+    size_t dst_i = 0;
+    while (src_i + needle_len <= len) {
+        if (memcmp(buf + src_i, needle, needle_len) == 0) {
+            if (repl_len > 0) {
+                memcpy(dst + dst_i, replacement, repl_len);
+                dst_i += repl_len;
+            }
+            src_i += needle_len;
+        } else {
+            dst[dst_i++] = buf[src_i++];
+        }
+    }
+    while (src_i < len) {
+        dst[dst_i++] = buf[src_i++];
+    }
+
+    *out = dst;
+    *out_len = dst_i;
+    return 1;
+}
+
 
 
 static inline int file_to_buffer(const char *filename, unsigned char **buf, size_t *len) {

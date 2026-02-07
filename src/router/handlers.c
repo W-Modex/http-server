@@ -74,6 +74,7 @@ int post_signup(http_request_t* req, http_response_t* res) {
     if (!response_set_redirect(res, 302, "/")) {
         return 0;
     }
+    
     if (!set_session_cookie(res, &req->session, SESSION_TTL)) {
         return 0;
     }

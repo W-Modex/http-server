@@ -9,13 +9,13 @@
 #include <string.h>
 
 const route_t ROUTES[] = {
-    {HTTP_GET, "/", ENSURE_SESSION, static_get}, 
-    {HTTP_GET, "/chat", AUTH_REQUIRED, static_get}, 
-    {HTTP_GET, "/about", AUTH_REQUIRED, static_get},
-    {HTTP_GET, "/login", ENSURE_SESSION, static_get},
-    {HTTP_POST, "/login", CSRF_REQUIRED, post_login},
-    {HTTP_GET, "/signup", ENSURE_SESSION, static_get},
-    {HTTP_POST, "/signup", CSRF_REQUIRED, post_signup},
+    {HTTP_GET, "/", ENSURE_SESSION | RENDER_HTML, static_get}, 
+    {HTTP_GET, "/chat", AUTH_REQUIRED | RENDER_HTML, static_get}, 
+    {HTTP_GET, "/about", AUTH_REQUIRED | RENDER_HTML, static_get},
+    {HTTP_GET, "/login", ANON_ONLY | ENSURE_SESSION | RENDER_HTML, static_get},
+    {HTTP_POST, "/login", ANON_ONLY | CSRF_REQUIRED, post_login},
+    {HTTP_GET, "/signup", ANON_ONLY | ENSURE_SESSION | RENDER_HTML, static_get},
+    {HTTP_POST, "/signup", ANON_ONLY | CSRF_REQUIRED, post_signup},
     {HTTP_POST, "/logout", AUTH_REQUIRED | CSRF_REQUIRED, post_logout},
 };
 
@@ -41,7 +41,7 @@ int router_dispatch(http_request_t *req, http_response_t *res) {
     if ((route->flags & AUTH_REQUIRED) && !is_auth) 
         return response_set_redirect(res, 302, "/login");
     
-    if (!(route->flags & AUTH_REQUIRED) && is_auth)
+    if ((route->flags & ANON_ONLY) && is_auth)
         return response_set_redirect(res, 302, "/");
 
     int issued_session = 0;
@@ -62,6 +62,10 @@ int router_dispatch(http_request_t *req, http_response_t *res) {
     if (handled > 0) {
         if (issued_session) {
             if (!set_session_cookie(res, &req->session, COOKIE_MAX_AGE_UNSET))
+                return -1;
+        }
+        if (route->flags & RENDER_HTML) {
+            if (!render_html(req, res))
                 return -1;
         }
         if (!csrf_maybe_inject(req, res))

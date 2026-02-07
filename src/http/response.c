@@ -1,11 +1,68 @@
 #include "http/response.h"
 #include "router/router.h"
+#include "auth/csrf.h"
+#include "auth/session.h"
 #include "utils/str.h"
+#include <ctype.h>
 #include <netinet/in.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+
+static const char *RENDER_NEEDLES[] = {
+    CSRF_TOKEN_PLACEHOLDER,
+    "{{IS_AUTH}}",
+};
+
+static const size_t RENDER_NEEDLES_COUNT = sizeof(RENDER_NEEDLES) / sizeof(RENDER_NEEDLES[0]);
+
+static int str_case_starts_with(const char *s, const char *prefix) {
+    if (!s || !prefix) return 0;
+    while (*prefix) {
+        if (!*s) return 0;
+        if (tolower((unsigned char)*s) != tolower((unsigned char)*prefix)) return 0;
+        s++;
+        prefix++;
+    }
+    return 1;
+}
+
+static const char *render_value_for(const char *needle, http_request_t *req,
+                                    char *scratch, size_t scratch_len) {
+    if (!needle || !req) return "";
+    if (strcmp(needle, CSRF_TOKEN_PLACEHOLDER) == 0) {
+        if (req->session.created_at != 0 &&
+            csrf_token_hex(&req->session, scratch, scratch_len)) {
+            return scratch;
+        }
+        return "";
+    }
+    if (strcmp(needle, "{{IS_AUTH}}") == 0) {
+        return session_is_authenticated(&req->session) ? "Logout" : "Login";
+    }
+    
+    return "";
+}
+
+static int replace_in_response(http_response_t *res, const char *needle, const char *replacement) {
+    if (!res || !needle || !replacement) return 0;
+    if (!res->body || res->body_length == 0) return 1;
+
+    unsigned char *out = NULL;
+    size_t out_len = 0;
+    if (!replace_all(res->body, res->body_length, needle, replacement, &out, &out_len)) {
+        return 0;
+    }
+    if (!out) return 1;
+
+    if (res->body_owned && res->body) free((void *)res->body);
+    res->body = out;
+    res->body_length = out_len;
+    res->body_owned = 1;
+    return 1;
+}
 
 static void append_header_line(char *out, size_t *offset, const char *name, const char *value) {
     size_t name_len = strlen(name);
@@ -93,6 +150,23 @@ int response_set_redirect(http_response_t *res, int code, const char *location) 
     http_response_init(res, code, redirect_status_text(code));
     http_response_set_body(res, (const unsigned char *)"", 0, "text/plain");
     if (http_response_add_header(res, "Location", location) != 0) return 0;
+    return 1;
+}
+
+int render_html(http_request_t *req, http_response_t *res) {
+    if (!req || !res) return 0;
+    if (!res->body || res->body_length == 0) return 1;
+    if (!res->content_type[0] ||
+        !str_case_starts_with(res->content_type, "text/html")) {
+        return 1;
+    }
+
+    char scratch[CSRF_TOKEN_HEX_LEN + 1];
+    for (size_t i = 0; i < RENDER_NEEDLES_COUNT; ++i) {
+        const char *needle = RENDER_NEEDLES[i];
+        const char *replacement = render_value_for(needle, req, scratch, sizeof(scratch));
+        if (!replace_in_response(res, needle, replacement)) return 0;
+    }
     return 1;
 }
 
@@ -262,6 +336,7 @@ int static_get(http_request_t *req, http_response_t *res) {
         free(filename);
         return response_set_error(res, 404, "Not Found");
     }
+    
     http_response_init(res, 200, "OK");
     http_response_set_body(res, buf, buf_len, mime);
     res->body_owned = 1;

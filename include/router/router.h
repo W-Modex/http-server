@@ -11,6 +11,8 @@ typedef enum {
     AUTH_REQUIRED = 1 << 0,
     CSRF_REQUIRED = 1 << 1,
     ENSURE_SESSION = 1 << 2,
+    RENDER_HTML = 1 << 3,
+    ANON_ONLY = 1 << 4,
 } auth_flags_t;
 
 typedef struct {
