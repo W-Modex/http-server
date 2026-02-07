@@ -17,3 +17,8 @@ add_executable(test_cookie_parse test_cookie_parse.c)
 target_link_libraries(test_cookie_parse PRIVATE myserver_lib)
 
 add_test(NAME cookie_parse_test COMMAND test_cookie_parse)
+
+add_executable(test_csrf test_csrf.c)
+target_link_libraries(test_csrf PRIVATE myserver_lib)
+
+add_test(NAME csrf_test COMMAND test_csrf)

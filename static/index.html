@@ -15,6 +15,7 @@
             </a>
             <nav class="nav" aria-label="Primary">
                 <form action="/logout" method="post">
+                    <input type="hidden" name="csrf_token" value="{{CSRF_TOKEN}}">
                     <button class="btn btn--primary" type="submit">Logout</button>
                 </form>
             </nav>

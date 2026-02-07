@@ -10,6 +10,7 @@ typedef int (*handler_fn)(http_request_t *req, http_response_t* res);
 typedef enum {
     AUTH_REQUIRED = 1 << 0,
     CSRF_REQUIRED = 1 << 1,
+    ENSURE_SESSION = 1 << 2,
 } auth_flags_t;
 
 typedef struct {

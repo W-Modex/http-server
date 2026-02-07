@@ -124,6 +124,9 @@ http_request_t *parse_http_request(const char *raw, size_t raw_len) {
     req->form_items = NULL;
     req->form_count = 0;
     req->form_parsed = 0;
+    req->json_items = NULL;
+    req->json_count = 0;
+    req->json_parsed = 0;
 
     char *saveptr = NULL;
     char *line = strtok_r(buf, "\r\n", &saveptr);

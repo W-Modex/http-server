@@ -50,6 +50,11 @@ struct form_kv {
     char *val;
 };
 
+struct json_kv {
+    char *key;
+    char *val;
+};
+
 typedef struct {
     http_method_t method;
     char path[MAX_PATH_LEN];
@@ -69,6 +74,9 @@ typedef struct {
     struct form_kv *form_items;
     size_t form_count;
     int form_parsed;
+    struct json_kv *json_items;
+    size_t json_count;
+    int json_parsed;
 
     session_t session;
 } http_request_t;

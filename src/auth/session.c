@@ -1,4 +1,5 @@
 #include "auth/session.h"
+#include "auth/cookie.h"
 #include "auth/crypto.h"
 #include "http/body.h"
 #include "http/request.h"
@@ -133,6 +134,36 @@ int create_session( http_request_t* req, uint64_t uid) {
     return 0;
 }
 
+int create_anonymous_session(http_request_t *req) {
+    return create_session(req, 0);
+}
+
+int set_session_cookie(http_response_t *res, const session_t *session, long max_age) {
+    if (!res || !session) return 0;
+    cookie_settings_t opts = {0};
+    opts.max_age = max_age;
+    opts.samesite = COOKIE_SAMESITE_LAX;
+    opts.flags = (COOKIE_FLAG_HTTPONLY | COOKIE_FLAG_SECURE);
+    opts.path = "/";
+
+    char sid_hex[SESSION_ID_LEN * 2 + 1];
+    if (hex_encode(session->sid, SESSION_ID_LEN, sid_hex, sizeof(sid_hex)) != 0)
+        return 0;
+
+    char *cookie_value = build_set_cookie_value(SESSION_COOKIE_NAME, sid_hex, &opts);
+    if (!cookie_value) return 0;
+
+    int ok = http_response_add_header(res, "Set-Cookie", cookie_value) == 0;
+    free(cookie_value);
+    return ok;
+}
+
+int session_is_authenticated(const session_t *session) {
+    if (!session) return 0;
+    if (session->created_at == 0) return 0;
+    return session->uid > 0;
+}
+
 int destroy_session(unsigned char *sid) {
     if (!sid) return 0;
 
@@ -264,7 +295,7 @@ int create_user(http_request_t *req, http_response_t *res) {
     if (password_hash(password, &pw_hash) != 0) return 0;
 
     pthread_mutex_lock(&user_store->u_lock);
-    if (user_store->count >= MAX_USER_SIZE ||
+    if (user_store->count >= (MAX_USER_SIZE - 1) ||
         user_entry_lookup_locked(user_store->by_username, username) ||
         user_entry_lookup_locked(user_store->by_email, email)) {
         pthread_mutex_unlock(&user_store->u_lock);
@@ -286,7 +317,7 @@ int create_user(http_request_t *req, http_response_t *res) {
         return 0;
     }
 
-    uint64_t id = (uint64_t)user_store->count;
+    uint64_t id = (uint64_t)user_store->count + 1;
     user_t *user = &user_store->users[id];
     user->id = id;
     user->username = username_copy;
@@ -327,7 +358,9 @@ int get_user(http_request_t *req, http_response_t *res) {
     user_t *user = NULL;
     pthread_mutex_lock(&user_store->u_lock);
     if (use_session_lookup) {
-        if (req->session.created_at != 0 && req->session.uid < (uint64_t)user_store->count) {
+        if (req->session.created_at != 0 &&
+            req->session.uid > 0 &&
+            req->session.uid <= (uint64_t)user_store->count) {
             user = &user_store->users[req->session.uid];
         }
     } else {
@@ -335,7 +368,7 @@ int get_user(http_request_t *req, http_response_t *res) {
         if (!entry) {
             entry = user_entry_lookup_locked(user_store->by_username, id);
         }
-        if (entry && entry->id < (uint64_t)user_store->count) {
+        if (entry && entry->id > 0 && entry->id <= (uint64_t)user_store->count) {
             user = &user_store->users[entry->id];
         }
     }

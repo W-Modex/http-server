@@ -34,6 +34,7 @@
                     <label class="label" for="confirm-password">Confirm password</label>
                     <input class="input" type="password" id="confirm-password" name="confirm-password" autocomplete="new-password" required />
                 </div>
+                <input type="hidden" name="csrf_token" value="{{CSRF_TOKEN}}">
                 <p class="form-msg" role="status" aria-live="polite">Form feedback appears here.</p>
                 <button class="btn btn--primary" type="submit">Sign up</button>
             </form>

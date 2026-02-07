@@ -1,4 +1,6 @@
 #include "router/router.h"
+#include "auth/csrf.h"
+#include "auth/cookie.h"
 #include "auth/session.h"
 #include "http/request.h"
 #include "http/response.h"
@@ -7,14 +9,14 @@
 #include <string.h>
 
 const route_t ROUTES[] = {
-    {HTTP_GET, "/", AUTH_REQUIRED, static_get}, 
+    {HTTP_GET, "/", ENSURE_SESSION, static_get}, 
     {HTTP_GET, "/chat", AUTH_REQUIRED, static_get}, 
     {HTTP_GET, "/about", AUTH_REQUIRED, static_get},
-    {HTTP_GET, "/login", 0, static_get},
+    {HTTP_GET, "/login", ENSURE_SESSION, static_get},
     {HTTP_POST, "/login", CSRF_REQUIRED, post_login},
-    {HTTP_GET, "/signup", 0, static_get},
+    {HTTP_GET, "/signup", ENSURE_SESSION, static_get},
     {HTTP_POST, "/signup", CSRF_REQUIRED, post_signup},
-    {HTTP_POST, "/logout", AUTH_REQUIRED, post_logout},
+    {HTTP_POST, "/logout", AUTH_REQUIRED | CSRF_REQUIRED, post_logout},
 };
 
 const size_t ROUTES_COUNT = sizeof(ROUTES)/sizeof(ROUTES[0]);
@@ -33,14 +35,37 @@ int router_dispatch(http_request_t *req, http_response_t *res) {
     const route_t* route = router_find(req->method, req->path);
     if (!route) return 0;
 
-    int ok = get_session(req);
+    int has_session = get_session(req);
+    int is_auth = session_is_authenticated(&req->session);
 
-    if ((route->flags & AUTH_REQUIRED) && !ok) 
+    if ((route->flags & AUTH_REQUIRED) && !is_auth) 
         return response_set_redirect(res, 302, "/login");
     
-    if (!(route->flags & AUTH_REQUIRED) && ok)
+    if (!(route->flags & AUTH_REQUIRED) && is_auth)
         return response_set_redirect(res, 302, "/");
 
-    
-    return route->handler(req, res) ? 1 : -1;
+    int issued_session = 0;
+    if ((route->flags & ENSURE_SESSION) && !has_session) {
+        if (!create_anonymous_session(req))
+            return response_set_error(res, 500, "Internal Server Error");
+        issued_session = 1;
+    }
+
+    if ((route->flags & CSRF_REQUIRED) &&
+        (req->method == HTTP_POST || req->method == HTTP_PUT ||
+         req->method == HTTP_PATCH || req->method == HTTP_DELETE)) {
+        if (!csrf_validate_request(req))
+            return response_set_error(res, 403, "Forbidden");
+    }
+
+    int handled = route->handler(req, res) ? 1 : -1;
+    if (handled > 0) {
+        if (issued_session) {
+            if (!set_session_cookie(res, &req->session, COOKIE_MAX_AGE_UNSET))
+                return -1;
+        }
+        if (!csrf_maybe_inject(req, res))
+            return -1;
+    }
+    return handled;
 }

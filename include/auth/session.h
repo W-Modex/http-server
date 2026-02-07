@@ -14,9 +14,12 @@
 extern u_store_t* user_store;
 
 int create_session(http_request_t* req, uint64_t uid);
+int create_anonymous_session(http_request_t* req);
+int set_session_cookie(http_response_t* res, const session_t* session, long max_age);
 int destroy_session(unsigned char* sid);
 int get_session(http_request_t* req);
 int rotate_session(http_request_t* req);
+int session_is_authenticated(const session_t* session);
 
 int create_user(http_request_t* req, http_response_t* res);
 int get_user(http_request_t* req, http_response_t* res);
