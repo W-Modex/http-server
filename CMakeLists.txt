@@ -13,6 +13,7 @@ add_library(myserver_lib
     src/router/router.c
     src/router/handlers.c
     src/auth/crypto.c
+    src/auth/oauth.c
     src/auth/cookie.c
     src/auth/csrf.c
     src/auth/session.c

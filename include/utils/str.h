@@ -42,6 +42,16 @@ static inline void str_copy(char *dst, const char *src, size_t size) {
     dst[size - 1] = '\0';
 }
 
+
+static const char* must_getenv(const char* name) {
+    const char* v = getenv(name);
+    if (!v || v[0] == '\0') {
+        fprintf(stderr, "Missing required env var: %s\n", name);
+        exit(1);
+    }
+    return v;
+}
+
 static int hex_val(char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
@@ -75,6 +85,34 @@ static int percent_decode(const char *src, char **out) {
             i += 2;
         } else {
             dst[di++] = ch;
+        }
+    }
+    dst[di] = '\0';
+    *out = dst;
+    return 0;
+}
+
+static int percent_encode(const char *src, char **out) {
+    if (!src || !out) return -1;
+    size_t len = strlen(src);
+    if (len > (SIZE_MAX - 1) / 3) return -1;
+
+    size_t max_len = len * 3 + 1;
+    char *dst = malloc(max_len);
+    if (!dst) return -1;
+
+    static const char *hex = "0123456789ABCDEF";
+    size_t di = 0;
+    for (size_t i = 0; i < len; ++i) {
+        unsigned char ch = (unsigned char)src[i];
+        if (ch == ' ') {
+            dst[di++] = '+';
+        } else if (isalnum(ch) || ch == '-' || ch == '_' || ch == '.' || ch == '~') {
+            dst[di++] = (char)ch;
+        } else {
+            dst[di++] = '%';
+            dst[di++] = hex[(ch >> 4) & 0x0F];
+            dst[di++] = hex[ch & 0x0F];
         }
     }
     dst[di] = '\0';

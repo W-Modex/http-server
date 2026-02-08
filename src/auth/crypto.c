@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +28,90 @@ int rand_bytes(void *buf, size_t len) {
         }
         off += (size_t)r;
     }
+    return 0;
+}
+
+static int base64url_encoded_len(size_t in_len, size_t *out_len) {
+    if (!out_len) return -1;
+    size_t full = in_len / 3;
+    size_t rem = in_len % 3;
+    if (full > SIZE_MAX / 4) return -1;
+    size_t len = full * 4;
+    if (rem) {
+        if (len > SIZE_MAX - (rem + 1)) return -1;
+        len += rem + 1;
+    }
+    *out_len = len;
+    return 0;
+}
+
+static int base64url_encode(const unsigned char *in, size_t in_len, char *out, size_t out_len) {
+    if (!in || !out) return -1;
+    size_t needed = 0;
+    if (base64url_encoded_len(in_len, &needed) != 0) return -1;
+    if (out_len < needed + 1) return -1;
+
+    static const char *alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    size_t i = 0;
+    size_t o = 0;
+    while (i + 2 < in_len) {
+        uint32_t v = ((uint32_t)in[i] << 16) | ((uint32_t)in[i + 1] << 8) | in[i + 2];
+        out[o++] = alphabet[(v >> 18) & 0x3F];
+        out[o++] = alphabet[(v >> 12) & 0x3F];
+        out[o++] = alphabet[(v >> 6) & 0x3F];
+        out[o++] = alphabet[v & 0x3F];
+        i += 3;
+    }
+
+    if (in_len - i == 1) {
+        uint32_t v = ((uint32_t)in[i] << 16);
+        out[o++] = alphabet[(v >> 18) & 0x3F];
+        out[o++] = alphabet[(v >> 12) & 0x3F];
+    } else if (in_len - i == 2) {
+        uint32_t v = ((uint32_t)in[i] << 16) | ((uint32_t)in[i + 1] << 8);
+        out[o++] = alphabet[(v >> 18) & 0x3F];
+        out[o++] = alphabet[(v >> 12) & 0x3F];
+        out[o++] = alphabet[(v >> 6) & 0x3F];
+    }
+
+    out[o] = '\0';
+    return 0;
+}
+
+int random_base64url(size_t byte_len, char **out) {
+    if (!out) return -1;
+    *out = NULL;
+
+    size_t encoded_len = 0;
+    if (base64url_encoded_len(byte_len, &encoded_len) != 0) return -1;
+
+    unsigned char *buf = NULL;
+    if (byte_len > 0) {
+        buf = (unsigned char *)malloc(byte_len);
+        if (!buf) return -1;
+        if (rand_bytes(buf, byte_len) != 0) {
+            free(buf);
+            return -1;
+        }
+    }
+
+    char *encoded = (char *)malloc(encoded_len + 1);
+    if (!encoded) {
+        free(buf);
+        return -1;
+    }
+
+    int rc = base64url_encode(buf ? buf : (unsigned char *)"", byte_len, encoded, encoded_len + 1);
+    if (buf) {
+        OPENSSL_cleanse(buf, byte_len);
+    }
+    free(buf);
+    if (rc != 0) {
+        free(encoded);
+        return -1;
+    }
+
+    *out = encoded;
     return 0;
 }
 

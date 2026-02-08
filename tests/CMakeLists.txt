@@ -22,3 +22,8 @@ add_executable(test_csrf test_csrf.c)
 target_link_libraries(test_csrf PRIVATE myserver_lib)
 
 add_test(NAME csrf_test COMMAND test_csrf)
+
+add_executable(test_oauth test_oauth.c)
+target_link_libraries(test_oauth PRIVATE myserver_lib)
+
+add_test(NAME oauth_test COMMAND test_oauth)

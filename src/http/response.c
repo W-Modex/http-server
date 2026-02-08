@@ -14,6 +14,7 @@
 static const char *RENDER_NEEDLES[] = {
     CSRF_TOKEN_PLACEHOLDER,
     "{{IS_AUTH}}",
+    "{{USERNAME}}",
 };
 
 static const size_t RENDER_NEEDLES_COUNT = sizeof(RENDER_NEEDLES) / sizeof(RENDER_NEEDLES[0]);
@@ -42,7 +43,15 @@ static const char *render_value_for(const char *needle, http_request_t *req,
     if (strcmp(needle, "{{IS_AUTH}}") == 0) {
         return session_is_authenticated(&req->session) ? "Logout" : "Login";
     }
-    
+    if (strcmp(needle, "{{USERNAME}}") == 0) {
+        uint64_t uid = req->session.uid;
+        if (req->session.created_at == 0 || uid == 0 || !user_store) return "";
+        if (uid > (uint64_t)user_store->count) return "";
+
+        const user_t *user = &user_store->users[uid];
+        if (!user->username || !*user->username) return "";
+        return user->username;
+    }
     return "";
 }
 

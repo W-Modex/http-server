@@ -1,5 +1,8 @@
 #include "http/body.h"
 #include <ctype.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define MAX_FORM_PAIRS 256
 #define MAX_JSON_PAIRS 256
@@ -541,6 +544,81 @@ const char *http_request_json_get(const http_request_t *req, const char *key) {
         }
     }
     return NULL;
+}
+
+int http_json_get_string_dup(const char *json, const char *key, char **out) {
+    if (!json || !key || !*key || !out) return 0;
+    *out = NULL;
+
+    http_request_t req = {0};
+    req.headers[0].name = "Content-Type";
+    req.headers[0].value = "application/json";
+    req.header_count = 1;
+    req.body = (char *)json;
+    req.body_len = strlen(json);
+
+    if (http_request_parse_json(&req) != 0) {
+        http_request_free_parsed_body(&req);
+        return 0;
+    }
+
+    const char *value = http_request_json_get(&req, key);
+    if (!value) {
+        http_request_free_parsed_body(&req);
+        return 0;
+    }
+
+    char *dup = strdup(value);
+    if (!dup) {
+        http_request_free_parsed_body(&req);
+        return 0;
+    }
+
+    *out = dup;
+    http_request_free_parsed_body(&req);
+    return 1;
+}
+
+int http_json_get_bool(const char *json, const char *key, int *out) {
+    if (!out) return 0;
+    *out = 0;
+
+    char *raw = NULL;
+    if (!http_json_get_string_dup(json, key, &raw) || !raw) return 0;
+
+    int ok = 0;
+    if (strcmp(raw, "true") == 0) {
+        *out = 1;
+        ok = 1;
+    } else if (strcmp(raw, "false") == 0) {
+        *out = 0;
+        ok = 1;
+    }
+
+    free(raw);
+    return ok;
+}
+
+int http_json_get_int64(const char *json, const char *key, int64_t *out) {
+    if (!out) return 0;
+    *out = 0;
+
+    char *raw = NULL;
+    if (!http_json_get_string_dup(json, key, &raw) || !raw || !*raw) {
+        free(raw);
+        return 0;
+    }
+
+    errno = 0;
+    char *end = NULL;
+    long long value = strtoll(raw, &end, 10);
+    int ok = (errno == 0 && end && *end == '\0');
+    if (ok) {
+        *out = (int64_t)value;
+    }
+
+    free(raw);
+    return ok;
 }
 
 void http_request_free_parsed_body(http_request_t *req) {
