@@ -17,6 +17,8 @@ const route_t ROUTES[] = {
     {HTTP_GET, "/signup", ANON_ONLY | ENSURE_SESSION | RENDER_HTML, static_get},
     {HTTP_POST, "/signup", ANON_ONLY | CSRF_REQUIRED, post_signup},
     {HTTP_POST, "/logout", AUTH_REQUIRED | CSRF_REQUIRED, post_logout},
+    {HTTP_GET, "/oauth/google/start", ANON_ONLY | ENSURE_SESSION, post_logout},
+    {HTTP_GET, "/oauth/google/callback", ANON_ONLY | ENSURE_SESSION, post_logout},
 };
 
 const size_t ROUTES_COUNT = sizeof(ROUTES)/sizeof(ROUTES[0]);

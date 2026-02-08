@@ -9,7 +9,7 @@
     }
 
 static int test_post_with_body(void) {
-    const char *msg = "POST / HTTP/1.1\r\n"
+    const char *msg = "POST /?code=4 HTTP/1.1\r\n"
         "Content-Type: application/x-www-form-urlencoded\r\n"
         "Content-Length: 27\r\n"
         "\r\n"
@@ -21,6 +21,7 @@ static int test_post_with_body(void) {
     ASSERT_TRUE(strcmp(req->version, "HTTP/1.1") == 0);
     ASSERT_TRUE(req->body_len == 27);
     ASSERT_TRUE(memcmp(req->body, "username=john&password=1234", 27) == 0);
+    ASSERT_TRUE(strcmp(get_request_params(req, "code"), "4") == 0);
     ASSERT_TRUE(strcmp(http_request_get_header(req, "Content-Type"),
         "application/x-www-form-urlencoded") == 0);
     free_http_request(req);
@@ -106,6 +107,20 @@ static int test_content_length_too_large(void) {
     return 0;
 }
 
+static int test_query_params(void) {
+    const char *msg = "GET /search?q=hello+world&empty=&encoded=%7Bvalue%7D HTTP/1.1\r\n"
+        "Host: example.com\r\n"
+        "\r\n";
+    http_request_t *req = parse_http_request(msg, strlen(msg));
+    ASSERT_TRUE(req != NULL);
+    ASSERT_TRUE(strcmp(req->path, "/search") == 0);
+    ASSERT_TRUE(strcmp(get_request_params(req, "q"), "hello world") == 0);
+    ASSERT_TRUE(strcmp(get_request_params(req, "empty"), "") == 0);
+    ASSERT_TRUE(strcmp(get_request_params(req, "encoded"), "{value}") == 0);
+    free_http_request(req);
+    return 0;
+}
+
 int main() {
     int failures = 0;
     failures += test_post_with_body();
@@ -116,6 +131,7 @@ int main() {
     failures += test_invalid_start_line();
     failures += test_invalid_header_line();
     failures += test_content_length_too_large();
+    failures += test_query_params();
 
     if (failures == 0) {
         printf("test_http_parse passed!\n");

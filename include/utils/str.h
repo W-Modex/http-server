@@ -11,6 +11,7 @@
 
 #define INITIAL_FD_SIZE   16
 #define MAX_PATH_LEN      512
+#define MAX_QUERY_LEN     1024
 #define MAX_METHOD_LEN    16
 #define MAX_HEADER_COUNT  100
 #define MAX_RESPONSE_HEADERS 100
@@ -39,6 +40,46 @@ static inline void str_copy(char *dst, const char *src, size_t size) {
     if (!dst || !src || size == 0) return;
     strncpy(dst, src, size - 1);
     dst[size - 1] = '\0';
+}
+
+static int hex_val(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+    return -1;
+}
+
+static int percent_decode(const char *src, char **out) {
+    if (!src || !out) return -1;
+    size_t len = strlen(src);
+    char *dst = malloc(len + 1);
+    if (!dst) return -1;
+
+    size_t di = 0;
+    for (size_t i = 0; i < len; ++i) {
+        char ch = src[i];
+        if (ch == '+') {
+            dst[di++] = ' ';
+        } else if (ch == '%') {
+            if (i + 2 >= len) {
+                free(dst);
+                return -1;
+            }
+            int hi = hex_val(src[i + 1]);
+            int lo = hex_val(src[i + 2]);
+            if (hi < 0 || lo < 0) {
+                free(dst);
+                return -1;
+            }
+            dst[di++] = (char)((hi << 4) | lo);
+            i += 2;
+        } else {
+            dst[di++] = ch;
+        }
+    }
+    dst[di] = '\0';
+    *out = dst;
+    return 0;
 }
 
 static inline void trim_inplace(char *s) {

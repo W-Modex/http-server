@@ -4,6 +4,20 @@
 #include "http/body.h"
 #include "http/request.h"
 
+#define MAX_QUERY_PAIRS 256
+
+static void free_query_items(http_request_t *req) {
+    if (!req) return;
+    for (size_t i = 0; i < req->query_count; ++i) {
+        free(req->query_items[i].key);
+        free(req->query_items[i].val);
+    }
+    free(req->query_items);
+    req->query_items = NULL;
+    req->query_count = 0;
+    req->query_parsed = 0;
+}
+
 static void free_request_partial(http_request_t *req) {
     if (!req) return;
     for (int i = 0; i < req->header_count; ++i) {
@@ -12,6 +26,7 @@ static void free_request_partial(http_request_t *req) {
     }
     cookie_jar_free(req->jar);
     http_request_free_parsed_body(req);
+    free_query_items(req);
     free(req->body);
     free(req);
 }
@@ -34,15 +49,25 @@ void free_http_request(http_request_t *req) {
     }
     cookie_jar_free(req->jar);
     http_request_free_parsed_body(req);
+    free_query_items(req);
     free(req->body);
     free(req);
 }
 
-/* Case-insensitive header lookup */
 const char *http_request_get_header(const http_request_t *req, const char *name) {
     if (!req || !name) return NULL;
     for (int i = 0; i < req->header_count; ++i) {
         if (str_case_eq(req->headers[i].name, name)) return req->headers[i].value;
+    }
+    return NULL;
+}
+
+const char *get_request_params(const http_request_t *req, const char *key) {
+    if (!req || !key || !req->query_parsed) return NULL;
+    for (size_t i = 0; i < req->query_count; ++i) {
+        if (strcmp(req->query_items[i].key, key) == 0) {
+            return req->query_items[i].val;
+        }
     }
     return NULL;
 }
@@ -57,15 +82,28 @@ static int parse_start_line(char *line, http_request_t *req) {
 
     if (!method || !path || !ver) return -1;
 
+    char *query = strchr(path, '?');
+    char *query_str = NULL;
+    if (query) {
+        *query = '\0';
+        query_str = query + 1;
+    }
+
     /* validate lengths */
     if (strlen(method) >= MAX_METHOD_LEN) return -1;
     if (strlen(path) >= sizeof(req->path)) return -1;
+    if (query_str && strlen(query_str) >= sizeof(req->query)) return -1;
     if (strlen(ver)  >= sizeof(req->version)) return -1;
 
     if (strncmp(ver, "HTTP/", 5) != 0) return -1;
     set_http_method(req, method);
     strncpy(req->path, path, sizeof(req->path)-1);
     req->path[sizeof(req->path)-1] = '\0';
+    req->query[0] = '\0';
+    if (query_str) {
+        strncpy(req->query, query_str, sizeof(req->query)-1);
+        req->query[sizeof(req->query)-1] = '\0';
+    }
     strncpy(req->version, ver, sizeof(req->version)-1);
     req->version[sizeof(req->version)-1] = '\0';
 
@@ -103,6 +141,90 @@ static int str_case_contains(const char *haystack, const char *needle) {
     return 0;
 }
 
+static int parse_query_params(http_request_t *req) {
+    if (!req) return -1;
+    req->query_parsed = 1;
+    req->query_count = 0;
+    if (req->query[0] == '\0') return 0;
+
+    char *buf = strdup(req->query);
+    if (!buf) return -1;
+
+    size_t count = 0;
+    size_t capacity = 0;
+    char *saveptr = NULL;
+    char *pair = strtok_r(buf, "&", &saveptr);
+    while (pair) {
+        if (count >= MAX_QUERY_PAIRS) {
+            free(buf);
+            free_query_items(req);
+            return -1;
+        }
+
+        char *eq = strchr(pair, '=');
+        char *key_part = pair;
+        char *val_part = "";
+        if (eq) {
+            *eq = '\0';
+            val_part = eq + 1;
+        }
+
+        char *key_dec = NULL;
+        char *val_dec = NULL;
+        if (percent_decode(key_part, &key_dec) != 0) {
+            free(buf);
+            free_query_items(req);
+            return -1;
+        }
+        if (percent_decode(val_part, &val_dec) != 0) {
+            free(key_dec);
+            free(buf);
+            free_query_items(req);
+            return -1;
+        }
+
+        int duplicate = 0;
+        for (size_t i = 0; i < count; ++i) {
+            if (strcmp(req->query_items[i].key, key_dec) == 0) {
+                duplicate = 1;
+                break;
+            }
+        }
+
+        if (duplicate) {
+            free(key_dec);
+            free(val_dec);
+            pair = strtok_r(NULL, "&", &saveptr);
+            continue;
+        }
+
+        if (count == capacity) {
+            size_t new_cap = capacity ? capacity * 2 : 8;
+            if (new_cap > MAX_QUERY_PAIRS) new_cap = MAX_QUERY_PAIRS;
+            struct query_kv *items = realloc(req->query_items, new_cap * sizeof(*items));
+            if (!items) {
+                free(key_dec);
+                free(val_dec);
+                free(buf);
+                free_query_items(req);
+                return -1;
+            }
+            req->query_items = items;
+            capacity = new_cap;
+        }
+
+        req->query_items[count].key = key_dec;
+        req->query_items[count].val = val_dec;
+        count++;
+        req->query_count = count;
+
+        pair = strtok_r(NULL, "&", &saveptr);
+    }
+
+    free(buf);
+    return 0;
+}
+
 /* Main parser */
 http_request_t *parse_http_request(const char *raw, size_t raw_len) {
     if (!raw || raw_len == 0) return NULL;
@@ -127,6 +249,10 @@ http_request_t *parse_http_request(const char *raw, size_t raw_len) {
     req->json_items = NULL;
     req->json_count = 0;
     req->json_parsed = 0;
+    req->query_items = NULL;
+    req->query_count = 0;
+    req->query_parsed = 0;
+    req->query[0] = '\0';
 
     char *saveptr = NULL;
     char *line = strtok_r(buf, "\r\n", &saveptr);
@@ -137,6 +263,14 @@ http_request_t *parse_http_request(const char *raw, size_t raw_len) {
         free(buf);
         return NULL;
     }
+
+    if (parse_query_params(req) != 0) {
+        free_request_partial(req);
+        free(buf);
+        return NULL;
+    }
+
+    
 
     req->header_count = 0;
 

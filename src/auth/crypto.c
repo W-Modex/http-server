@@ -1,4 +1,5 @@
 #include "auth/crypto.h"
+#include "utils/str.h"
 #include <errno.h>
 #include <limits.h>
 #include <openssl/crypto.h>
@@ -30,13 +31,6 @@ int rand_bytes(void *buf, size_t len) {
 }
 
 
-static int hex_nibble(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
-}
-
 int hex_encode(const unsigned char *in, size_t in_len, char *out, size_t out_len) {
     static const char *hex = "0123456789abcdef";
     if (!in || !out) return -1;
@@ -54,8 +48,8 @@ int hex_decode(const char *hex_str, unsigned char *out, size_t out_len) {
     size_t hex_len = strlen(hex_str);
     if (hex_len != out_len * 2) return -1;
     for (size_t i = 0; i < out_len; i++) {
-        int hi = hex_nibble(hex_str[i * 2]);
-        int lo = hex_nibble(hex_str[i * 2 + 1]);
+        int hi = hex_val(hex_str[i * 2]);
+        int lo = hex_val(hex_str[i * 2 + 1]);
         if (hi < 0 || lo < 0) return -1;
         out[i] = (unsigned char)((hi << 4) | lo);
     }

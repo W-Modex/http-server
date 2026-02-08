@@ -55,9 +55,15 @@ struct json_kv {
     char *val;
 };
 
+struct query_kv {
+    char *key;
+    char *val;
+};
+
 typedef struct {
     http_method_t method;
     char path[MAX_PATH_LEN];
+    char query[MAX_QUERY_LEN];
     char version[MAX_METHOD_LEN];
 
     header_t headers[MAX_HEADER_COUNT];
@@ -78,11 +84,16 @@ typedef struct {
     size_t json_count;
     int json_parsed;
 
+    struct query_kv *query_items;
+    size_t query_count;
+    int query_parsed;
+
     session_t session;
 } http_request_t;
 
 http_request_t* parse_http_request(const char *raw, size_t raw_len);
 void free_http_request(http_request_t *req);
 const char* http_request_get_header(const http_request_t *req, const char *name);
+const char* get_request_params(const http_request_t *req, const char *key);
 
 #endif

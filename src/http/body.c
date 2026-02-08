@@ -15,13 +15,6 @@ static int str_case_starts_with(const char *s, const char *prefix) {
     return 1;
 }
 
-static int hex_val(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
-    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
-    return -1;
-}
-
 static const char *skip_ws(const char *p, const char *end) {
     while (p < end && isspace((unsigned char)*p)) p++;
     return p;
@@ -283,39 +276,6 @@ static int parse_json_value(const char **p, const char *end, char **out) {
         return 0;
     }
     return -1;
-}
-
-static int percent_decode(const char *src, char **out) {
-    if (!src || !out) return -1;
-    size_t len = strlen(src);
-    char *dst = malloc(len + 1);
-    if (!dst) return -1;
-
-    size_t di = 0;
-    for (size_t i = 0; i < len; ++i) {
-        char ch = src[i];
-        if (ch == '+') {
-            dst[di++] = ' ';
-        } else if (ch == '%') {
-            if (i + 2 >= len) {
-                free(dst);
-                return -1;
-            }
-            int hi = hex_val(src[i + 1]);
-            int lo = hex_val(src[i + 2]);
-            if (hi < 0 || lo < 0) {
-                free(dst);
-                return -1;
-            }
-            dst[di++] = (char)((hi << 4) | lo);
-            i += 2;
-        } else {
-            dst[di++] = ch;
-        }
-    }
-    dst[di] = '\0';
-    *out = dst;
-    return 0;
 }
 
 int http_request_detect_body_kind(http_request_t *req) {
