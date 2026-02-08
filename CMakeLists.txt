@@ -19,6 +19,7 @@ add_library(myserver_lib
 )
 
 target_include_directories(myserver_lib PUBLIC include)
+target_compile_definitions(myserver_lib PUBLIC STATIC_DIR="${CMAKE_SOURCE_DIR}/static")
 target_link_libraries(myserver_lib PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 
 add_executable(server src/main.c)

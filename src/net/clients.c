@@ -2,6 +2,7 @@
 #include <fcntl.h>
 #include "net/socket.h"
 #include "utils/str.h"
+#include "worker.h"
 #include <errno.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -129,9 +130,11 @@ void handle_client_read(cxt_t* cxt, int client_fd) {
         return;
     }
     char buf[MAX_REQUEST_SIZE];
+    client_t* c = &cxt->clients[idx];
     if (cxt->clients[idx].is_ssl == NOT_TLS) {
+        pthread_mutex_unlock(&cxt->pfds_lock);
         bytes_recv = recv_message(client_fd, buf, MAX_REQUEST_SIZE - 1);
-
+        pthread_mutex_lock(&cxt->pfds_lock);
         if (bytes_recv == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
             pthread_mutex_unlock(&cxt->pfds_lock);
             return;
@@ -165,7 +168,9 @@ void handle_client_read(cxt_t* cxt, int client_fd) {
         pthread_mutex_unlock(&cxt->pfds_lock);
         return;
     } else if (cxt->clients[idx].is_ssl == ESTABLISHED) {
+        pthread_mutex_unlock(&cxt->pfds_lock);
         bytes_recv = SSL_read(cxt->clients[idx].ssl, buf, MAX_REQUEST_SIZE - 1);
+        pthread_mutex_lock(&cxt->pfds_lock);
 
         if (bytes_recv <= 0) {
             int err = SSL_get_error(cxt->clients[idx].ssl, bytes_recv);
@@ -240,8 +245,11 @@ void handle_client_send(cxt_t* cxt, int client_fd) {
 
     ssize_t to_send = c->write_len - c->write_send;
     ssize_t sent = -1;
+    
     if (cxt->clients[idx].is_ssl == NOT_TLS) {
+        pthread_mutex_unlock(&cxt->pfds_lock);
         sent = send_message(c->fd, c->write_buf + c->write_send, to_send);
+        pthread_mutex_lock(&cxt->pfds_lock);
         if (sent <= 0) {
             if (sent == -1 && (errno == EWOULDBLOCK || errno == EAGAIN)) {
                 pthread_mutex_unlock(&cxt->pfds_lock);
@@ -277,7 +285,9 @@ void handle_client_send(cxt_t* cxt, int client_fd) {
         pthread_mutex_unlock(&cxt->pfds_lock);
         return;
     } else if (cxt->clients[idx].is_ssl == ESTABLISHED) {
-        sent = SSL_write(cxt->clients[idx].ssl, c->write_buf + c->write_send, to_send);
+        pthread_mutex_unlock(&cxt->pfds_lock);
+        sent = SSL_write(c->ssl, c->write_buf + c->write_send, to_send);
+        pthread_mutex_lock(&cxt->pfds_lock);
         if (sent <= 0) {
             int err = SSL_get_error(cxt->clients[idx].ssl, sent);
             if (err == SSL_ERROR_WANT_READ) {
@@ -313,15 +323,12 @@ void handle_client_send(cxt_t* cxt, int client_fd) {
 
 
 void close_connection(cxt_t* cxt, int client_fd) {
+    SSL* ssl = NULL;
     pthread_mutex_lock(&cxt->pfds_lock);
     for (int i = 0; i < cxt->fdcount; i++) {
         if (cxt->pfds[i].fd == client_fd) {
-            if (cxt->clients[i].ssl != NULL) {
-                SSL_shutdown(cxt->clients[i].ssl);
-                SSL_free(cxt->clients[i].ssl);
-            }
+            ssl = cxt->clients[i].ssl;
             if (cxt->clients[i].write_buf) { free(cxt->clients[i].write_buf); cxt->clients[i].write_buf = NULL; }
-            close(client_fd);
             cxt->pfds[i] = cxt->pfds[cxt->fdcount - 1];
             cxt->clients[i] = cxt->clients[cxt->fdcount - 1];
             cxt->fdcount--;
@@ -329,4 +336,9 @@ void close_connection(cxt_t* cxt, int client_fd) {
         }
     }
     pthread_mutex_unlock(&cxt->pfds_lock);
+    if (ssl != NULL) {
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+    }
+    close(client_fd);
 }

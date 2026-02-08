@@ -80,6 +80,6 @@ void setup_write(cxt_t *cxt, http_payload_t* payload, job_t* j) {
                 break;
             }
         }
+        pthread_mutex_unlock(&cxt->pfds_lock);
         if (!found) free(payload->data);
-    pthread_mutex_unlock(&cxt->pfds_lock);
 }

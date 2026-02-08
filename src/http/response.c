@@ -276,15 +276,45 @@ char* mime_type(char *filename) {
 }
 
 char* resolve_path(char* path) {
-    if (strcmp(path, "/") == 0) return strdup("../static/index.html"); 
-    if (strstr(path, "..")) return NULL;
-    char s[512];
-    if (!strchr(path, '.')) 
-        sprintf(s, "../static%s/index.html", path);
-    else 
-        sprintf(s, "../static%s", path);    
-    
-    return strdup(s);
+    if (!path) return NULL;
+
+    while (*path == '/') path++;
+
+    char clean_path[MAX_PATH_LEN];
+    if (*path == '\0') {
+        str_copy(clean_path, "index.html", sizeof(clean_path));
+    } else {
+        size_t path_len = strlen(path);
+        if (path_len >= sizeof(clean_path)) return NULL;
+        str_copy(clean_path, path, sizeof(clean_path));
+    }
+
+    if (strstr(clean_path, "..")) return NULL;
+
+    size_t clean_len = strlen(clean_path);
+    if (clean_len > 0) {
+        if (clean_path[clean_len - 1] == '/') {
+            const char *suffix = "index.html";
+            if (clean_len + strlen(suffix) >= sizeof(clean_path)) return NULL;
+            str_append(clean_path, suffix, sizeof(clean_path));
+        } else if (!strchr(clean_path, '.')) {
+            const char *suffix = "/index.html";
+            if (clean_len + strlen(suffix) >= sizeof(clean_path)) return NULL;
+            str_append(clean_path, suffix, sizeof(clean_path));
+        }
+    }
+
+    size_t full_len = strlen(STATIC_DIR) + 1 + strlen(clean_path) + 1;
+    char *full_path = malloc(full_len);
+    if (!full_path) return NULL;
+
+    int written = snprintf(full_path, full_len, "%s/%s", STATIC_DIR, clean_path);
+    if (written < 0 || (size_t)written >= full_len) {
+        free(full_path);
+        return NULL;
+    }
+
+    return full_path;
 }
 
 int handle_response(http_request_t* req, http_payload_t* payload) {
@@ -328,7 +358,6 @@ int static_get(http_request_t *req, http_response_t *res) {
         return response_set_error(res, 400, "Bad Request");
 
     char* mime = mime_type(filename);
-    printf("mime is: %s, filename is: %s\n", mime, filename);
 
     unsigned char *buf = NULL;
     size_t buf_len = 0;
@@ -353,7 +382,6 @@ int static_head(http_request_t *req, http_response_t *res) {
         return response_set_error(res, 400, "Bad Request");
 
     char* mime = mime_type(filename);
-    printf("mime is: %s, filename is: %s\n", mime, filename);
 
     struct stat st;
     if (stat(filename, &st) != 0) {

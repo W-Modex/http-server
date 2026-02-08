@@ -3,20 +3,24 @@
 #include "worker.h"
 #include <pthread.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <signal.h>
+#include <unistd.h>
 
-#define WORKER_COUNT 15
+#define WORKER_COUNT 7
 
 pthread_t workers[WORKER_COUNT];
 
 int main(int argc, char** argv) {
+    signal(SIGPIPE, SIG_IGN);
     int listener = get_listener_fd("2323");
     int ssl_listener = get_listener_fd("3434");
 
     if (listener < 0 || ssl_listener < 0) DIE("listeners init");
 
     cxt_t* ctx = init_ctx(listener, ssl_listener);
-
+    fprintf(stderr, "Using STATIC_DIR: %s\n", STATIC_DIR);
     printf("server: waiting for connections...\n");
 
     for (int i = 0; i < WORKER_COUNT; i++) {
