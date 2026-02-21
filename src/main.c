@@ -1,5 +1,6 @@
 #include "net/clients.h"
 #include "utils/ctx.h"
+#include "utils/str.h"
 #include "worker.h"
 #include <pthread.h>
 #include <stdlib.h>
@@ -14,13 +15,13 @@ pthread_t workers[WORKER_COUNT];
 
 int main(int argc, char** argv) {
     signal(SIGPIPE, SIG_IGN);
-    int listener = get_listener_fd("2323");
-    int ssl_listener = get_listener_fd("3434");
+
+    int listener = get_listener_fd(must_getenv("HTTP_PORT"));
+    int ssl_listener = get_listener_fd(must_getenv("HTTPS_PORT"));
 
     if (listener < 0 || ssl_listener < 0) DIE("listeners init");
 
     cxt_t* ctx = init_ctx(listener, ssl_listener);
-    fprintf(stderr, "Using STATIC_DIR: %s\n", STATIC_DIR);
     printf("server: waiting for connections...\n");
 
     for (int i = 0; i < WORKER_COUNT; i++) {

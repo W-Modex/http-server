@@ -1,4 +1,5 @@
 #include "net/socket.h"
+#include "utils/str.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -9,7 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-int get_listener_fd(char* port) {
+int get_listener_fd(const char* port) {
     struct addrinfo hints, *res, *p;
     int rv;
     int listen_fd = -1;
@@ -204,14 +205,14 @@ SSL_CTX* init_ssl_ctx() {
     );
 
     // Load cert chain
-    if (SSL_CTX_use_certificate_chain_file(ctx, "/etc/letsencrypt/live/modex.work/fullchain.pem") <= 0) {
+    if (SSL_CTX_use_certificate_chain_file(ctx, must_getenv("TLS_CERT_FILE")) <= 0) {
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ctx);
         return NULL;
     }
 
     // Load private key
-    if (SSL_CTX_use_PrivateKey_file(ctx, "/etc/letsencrypt/live/modex.work/privkey.pem", SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_PrivateKey_file(ctx, must_getenv("TLS_KEY_FILE"), SSL_FILETYPE_PEM) <= 0) {
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ctx);
         return NULL;

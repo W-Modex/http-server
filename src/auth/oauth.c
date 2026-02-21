@@ -23,7 +23,7 @@ static oauth_provider_t PROVIDERS[] = {
         .issuer = "https://accounts.google.com",
         .client_id = NULL,
         .client_secret = NULL,
-        .redirect_uri = "https://modex.work/oauth/google/callback",
+        .redirect_uri = NULL,
         .scope = "openid email profile",
     },
 };
@@ -36,13 +36,65 @@ oauth_flow_store_t oauth_flows = {
 
 static pthread_once_t oauth_providers_once = PTHREAD_ONCE_INIT;
 
-static void oauth_providers_init_once(void) {
-    const char *client_id = must_getenv("OAUTH_CLIENT_ID");
-    const char *client_secret = must_getenv("OAUTH_CLIENT_SECRET");
+static int oauth_provider_env_prefix(const char *provider_name, char *out, size_t out_len) {
+    if (!provider_name || !out || out_len == 0) return 0;
 
+    size_t oi = 0;
+    int wrote_char = 0;
+    int prev_sep = 1;
+    for (const unsigned char *p = (const unsigned char *)provider_name; *p; ++p) {
+        if (isalnum(*p)) {
+            if (oi + 1 >= out_len) return 0;
+            out[oi++] = (char)toupper(*p);
+            wrote_char = 1;
+            prev_sep = 0;
+            continue;
+        }
+        if (!prev_sep) {
+            if (oi + 1 >= out_len) return 0;
+            out[oi++] = '_';
+            prev_sep = 1;
+        }
+    }
+
+    while (oi > 0 && out[oi - 1] == '_') oi--;
+    if (!wrote_char || oi == 0) return 0;
+    out[oi] = '\0';
+    return 1;
+}
+
+static const char *oauth_provider_env_required(const char *provider_name, const char *field_suffix) {
+    if (!provider_name || !field_suffix) DIE("Invalid OAuth provider env lookup");
+
+    char prefix[64];
+    if (!oauth_provider_env_prefix(provider_name, prefix, sizeof(prefix))) {
+        DIE("Invalid OAuth provider name for env vars: %s", provider_name);
+    }
+
+    char env_name[128];
+    int n = snprintf(env_name, sizeof(env_name), "OAUTH_%s_%s", prefix, field_suffix);
+    if (n < 0 || (size_t)n >= sizeof(env_name)) {
+        DIE("OAuth env var name too long for provider: %s", provider_name);
+    }
+    return must_getenv(env_name);
+}
+
+static void oauth_providers_init_once(void) {
     for (size_t i = 0; i < PROVIDERS_COUNT; ++i) {
-        if (!PROVIDERS[i].client_id) PROVIDERS[i].client_id = client_id;
-        if (!PROVIDERS[i].client_secret) PROVIDERS[i].client_secret = client_secret;
+        oauth_provider_t *provider = &PROVIDERS[i];
+        if (!provider->name || !provider->name[0]) {
+            DIE("OAuth provider at index %zu has no name", i);
+        }
+
+        if (!provider->client_id) {
+            provider->client_id = oauth_provider_env_required(provider->name, "CLIENT_ID");
+        }
+        if (!provider->client_secret) {
+            provider->client_secret = oauth_provider_env_required(provider->name, "SECRET");
+        }
+        if (!provider->redirect_uri) {
+            provider->redirect_uri = oauth_provider_env_required(provider->name, "REDIRECT");
+        }
     }
 }
 

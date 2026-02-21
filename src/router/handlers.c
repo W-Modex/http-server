@@ -73,7 +73,6 @@ int post_signup(http_request_t* req, http_response_t* res) {
         if (stale_sid && !clear_sid_cookie(res)) return 0;
         return ok;
     }
-
     if (create_session(req, res->user.id) == 0) {
         int ok = response_set_error(res, 500, "Internal Server Error");
         if (stale_sid && !clear_sid_cookie(res)) return 0;
