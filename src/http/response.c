@@ -189,19 +189,34 @@ int is_https_request(int is_ssl, const http_request_t *req) {
 
 int build_https_redirect(const http_request_t *req, http_payload_t *payload) {
     if (!req || !payload) return 0;
+
     const char *host = http_request_get_header(req, "Host");
     if (!host || !*host) return build_simple_error(400, "Bad Request", payload);
 
-    size_t loc_len = strlen("https://") + strlen(host) + strlen(req->path) + 1;
+    const char *https_port = must_getenv("HTTPS_PORT");
+    
+
+    const char *colon = strchr(host, ':');
+    size_t host_len = colon ? (size_t)(colon - host) : strlen(host);
+
+    size_t loc_len = strlen("https://") + host_len + 1 + strlen(https_port) + strlen(req->path) + 1;
+
     char *location = malloc(loc_len);
     if (!location) return 0;
-    snprintf(location, loc_len, "https://%s%s", host, req->path);
+
+    int n = snprintf(location, loc_len, "https://%.*s:%s%s",
+                     (int)host_len, host, https_port, req->path);
+    if (n < 0 || (size_t)n >= loc_len) {
+        free(location);
+        return 0;
+    }
 
     http_response_t res;
     if (!response_set_redirect(&res, 308, location)) {
         free(location);
         return 0;
     }
+
     int ok = build_response(&res, payload);
     http_response_clear(&res);
     free(location);
@@ -222,7 +237,6 @@ int build_response(http_response_t *res, http_payload_t *payload) {
     if (!res || !payload) return 0;
     http_payload_clear(payload);
     char *content_type = res->content_type[0] ? res->content_type : "application/octet-stream";
-
     char status_line[128];
     int status_len = snprintf(status_line, sizeof(status_line), "HTTP/1.1 %d %s\r\n",
         res->status_code, res->status_text);
@@ -237,6 +251,7 @@ int build_response(http_response_t *res, http_payload_t *payload) {
     res->headers[res->header_count++].value = strdup(content_type);
     res->headers[res->header_count].name = strdup("Strict-Transport-Security");
     res->headers[res->header_count++].value = strdup("max-age=31536000; includeSubDomains");
+    
 
     size_t header_len = (size_t)status_len;
     header_len += (size_t)content_length_len;

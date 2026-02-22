@@ -21,7 +21,7 @@ int get_listener_fd(const char* port) {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    rv = getaddrinfo(NULL, port, &hints, &res);
+    rv = getaddrinfo("0.0.0.0", port, &hints, &res);
     if (rv != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return -1;
