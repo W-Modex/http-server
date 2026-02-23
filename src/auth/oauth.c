@@ -1,10 +1,12 @@
 #include <openssl/evp.h>
 #include "auth/crypto.h"
 #include "auth/oauth.h"
-#include "auth/session.h"
+#include "db.h"
+#include "db_ctx.h"
 #include "http/body.h"
 #include "utils/str.h"
 #include <ctype.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -515,14 +517,17 @@ static int oauth_google_issuer_matches(const char *expected, const char *actual)
 }
 
 int oauth_extract_google_identity_from_id_token(const oauth_flow_t *flow, const char *id_token,
-                                                char **out_email, char **out_username_seed) {
+                                                char **out_email, char **out_username_seed,
+                                                char **out_provider_user_id) {
     if (!flow || !flow->provider || !flow->provider->issuer || !flow->provider->client_id ||
-        !flow->nonce[0] || !id_token || !*id_token || !out_email || !out_username_seed) {
+        !flow->nonce[0] || !id_token || !*id_token || !out_email || !out_username_seed ||
+        !out_provider_user_id) {
         return 0;
     }
 
     *out_email = NULL;
     *out_username_seed = NULL;
+    *out_provider_user_id = NULL;
 
     char *payload_json = NULL;
     char *iss = NULL;
@@ -530,6 +535,7 @@ int oauth_extract_google_identity_from_id_token(const oauth_flow_t *flow, const 
     char *nonce = NULL;
     char *email = NULL;
     char *name = NULL;
+    char *provider_user_id = NULL;
     int email_verified = 0;
     int64_t exp = 0;
     int ok = 0;
@@ -556,6 +562,10 @@ int oauth_extract_google_identity_from_id_token(const oauth_flow_t *flow, const 
         goto cleanup;
     }
     if (!http_json_get_string_dup(payload_json, "email", &email) || !email || !*email) goto cleanup;
+    if (!http_json_get_string_dup(payload_json, "sub", &provider_user_id) ||
+        !provider_user_id || !*provider_user_id) {
+        goto cleanup;
+    }
 
     (void)http_json_get_string_dup(payload_json, "name", &name);
     if (name && !*name) {
@@ -567,6 +577,8 @@ int oauth_extract_google_identity_from_id_token(const oauth_flow_t *flow, const 
     email = NULL;
     *out_username_seed = name;
     name = NULL;
+    *out_provider_user_id = provider_user_id;
+    provider_user_id = NULL;
     ok = 1;
 
 cleanup:
@@ -576,28 +588,8 @@ cleanup:
     free(nonce);
     free(email);
     free(name);
+    free(provider_user_id);
     return ok;
-}
-
-static size_t oauth_user_key_hash(const char *key) {
-    if (!key) return 0;
-    uint64_t h = 1469598103934665603ULL;
-    for (const unsigned char *p = (const unsigned char *)key; *p; ++p) {
-        h ^= (uint64_t)(*p);
-        h *= 1099511628211ULL;
-    }
-    return (size_t)(h % MAX_USER_BUCKET);
-}
-
-static u_entry_t *oauth_user_entry_lookup_locked(u_entry_t **buckets, const char *key) {
-    if (!buckets || !key) return NULL;
-    size_t bucket = oauth_user_key_hash(key);
-    u_entry_t *cur = buckets[bucket];
-    while (cur) {
-        if (strcmp(cur->key, key) == 0) return cur;
-        cur = cur->next;
-    }
-    return NULL;
 }
 
 static void oauth_sanitize_username(const char *src, int stop_at_at, char *out, size_t out_len) {
@@ -658,22 +650,87 @@ static void oauth_build_username_candidate(const char *base, uint64_t suffix, ch
     memcpy(out + base_len, suffix_buf, suffix_sz + 1);
 }
 
-uint64_t oauth_find_or_create_user(const char *email, const char *username_seed) {
-    if (!email || !*email || !user_store) return 0;
+static int oauth_parse_i64(const char *s, int64_t *out) {
+    if (!s || !*s || !out) return 0;
+    errno = 0;
+    char *end = NULL;
+    long long v = strtoll(s, &end, 10);
+    if (errno == ERANGE || end == s || (end && *end != '\0')) return 0;
+    *out = (int64_t)v;
+    return 1;
+}
 
-    pthread_mutex_lock(&user_store->u_lock);
+static int oauth_find_user_id_by_email(PGconn *db, const char *email, int *found, int64_t *out_uid) {
+    if (!db || !email || !*email || !found || !out_uid) return 0;
 
-    u_entry_t *existing = oauth_user_entry_lookup_locked(user_store->by_email, email);
-    if (existing && existing->id > 0 && existing->id <= (uint64_t)user_store->count) {
-        uint64_t uid = existing->id;
-        pthread_mutex_unlock(&user_store->u_lock);
-        return uid;
-    }
+    *found = 0;
+    *out_uid = 0;
 
-    if (user_store->count >= (MAX_USER_SIZE - 1)) {
-        pthread_mutex_unlock(&user_store->u_lock);
+    const char *values[1] = { email };
+    PGresult *r = PQexecParams(
+        db,
+        "SELECT id FROM users WHERE email=$1 LIMIT 1",
+        1,
+        NULL,
+        values,
+        NULL,
+        NULL,
+        0
+    );
+    if (!r) return 0;
+    if (PQresultStatus(r) != PGRES_TUPLES_OK) {
+        PQclear(r);
         return 0;
     }
+    if (PQntuples(r) == 0) {
+        PQclear(r);
+        return 1;
+    }
+    if (PQntuples(r) != 1 || PQnfields(r) < 1 || PQgetisnull(r, 0, 0)) {
+        PQclear(r);
+        return 0;
+    }
+
+    int64_t uid = 0;
+    if (!oauth_parse_i64(PQgetvalue(r, 0, 0), &uid) || uid <= 0) {
+        PQclear(r);
+        return 0;
+    }
+
+    *found = 1;
+    *out_uid = uid;
+    PQclear(r);
+    return 1;
+}
+
+static int oauth_username_exists(PGconn *db, const char *username, int *exists) {
+    if (!db || !username || !*username || !exists) return 0;
+    *exists = 0;
+
+    const char *values[1] = { username };
+    PGresult *r = PQexecParams(
+        db,
+        "SELECT 1 FROM users WHERE username=$1 LIMIT 1",
+        1,
+        NULL,
+        values,
+        NULL,
+        NULL,
+        0
+    );
+    if (!r) return 0;
+    if (PQresultStatus(r) != PGRES_TUPLES_OK) {
+        PQclear(r);
+        return 0;
+    }
+
+    *exists = (PQntuples(r) == 1);
+    PQclear(r);
+    return 1;
+}
+
+static uint64_t oauth_create_user_with_unique_username(PGconn *db, const char *email, const char *username_seed) {
+    if (!db || !email || !*email) return 0;
 
     char username_base[96];
     oauth_sanitize_username(username_seed, 0, username_base, sizeof(username_base));
@@ -684,63 +741,98 @@ uint64_t oauth_find_or_create_user(const char *email, const char *username_seed)
         str_copy(username_base, "user", sizeof(username_base));
     }
 
-    char username[96];
-    oauth_build_username_candidate(username_base, 1, username, sizeof(username));
-    uint64_t suffix = 2;
-    while (oauth_user_entry_lookup_locked(user_store->by_username, username)) {
-        oauth_build_username_candidate(username_base, suffix, username, sizeof(username));
-        if (suffix == UINT64_MAX) {
-            pthread_mutex_unlock(&user_store->u_lock);
-            return 0;
-        }
-        suffix++;
-    }
-
     char *pw_seed = NULL;
     char *pw_hash = NULL;
     if (random_base64url(48, &pw_seed) != 0 || !pw_seed ||
         password_hash(pw_seed, &pw_hash) != 0 || !pw_hash) {
         free(pw_seed);
         free(pw_hash);
-        pthread_mutex_unlock(&user_store->u_lock);
         return 0;
     }
     free(pw_seed);
 
-    char *username_copy = strdup(username);
-    char *email_copy = strdup(email);
-    u_entry_t *username_entry = malloc(sizeof(*username_entry));
-    u_entry_t *email_entry = malloc(sizeof(*email_entry));
-    if (!username_copy || !email_copy || !username_entry || !email_entry) {
-        free(username_copy);
-        free(email_copy);
-        free(username_entry);
-        free(email_entry);
-        free(pw_hash);
-        pthread_mutex_unlock(&user_store->u_lock);
+    uint64_t out_uid = 0;
+    for (uint64_t suffix = 1; suffix <= 100000; ++suffix) {
+        char username[96];
+        oauth_build_username_candidate(username_base, suffix, username, sizeof(username));
+        if (!username[0]) break;
+
+        int exists = 0;
+        if (!oauth_username_exists(db, username, &exists)) break;
+        if (exists) {
+            continue;
+        }
+
+        int64_t created_uid = 0;
+        if (db_user_create(db, username, email, pw_hash, &created_uid)) {
+            out_uid = (uint64_t)created_uid;
+            break;
+        }
+
+        int found_by_email = 0;
+        int64_t uid_by_email = 0;
+        if (!oauth_find_user_id_by_email(db, email, &found_by_email, &uid_by_email)) {
+            break;
+        }
+        if (found_by_email) {
+            out_uid = (uint64_t)uid_by_email;
+            break;
+        }
+    }
+
+    free(pw_hash);
+    return out_uid;
+}
+
+uint64_t oauth_find_or_create_user(const char *provider, const char *provider_user_id,
+                                   const char *email, const char *username_seed) {
+    if (!provider || !*provider || !provider_user_id || !*provider_user_id || !email || !*email) {
         return 0;
     }
 
-    uint64_t id = (uint64_t)user_store->count + 1;
-    user_t *user = &user_store->users[id];
-    user->id = id;
-    user->username = username_copy;
-    user->email = email_copy;
-    user->password_hash = pw_hash;
+    PGconn *db = db_ctx_get();
+    if (!db) return 0;
 
-    size_t uname_bucket = oauth_user_key_hash(user->username);
-    username_entry->key = user->username;
-    username_entry->id = id;
-    username_entry->next = user_store->by_username[uname_bucket];
-    user_store->by_username[uname_bucket] = username_entry;
+    if (!db_begin(db)) return 0;
 
-    size_t email_bucket = oauth_user_key_hash(user->email);
-    email_entry->key = user->email;
-    email_entry->id = id;
-    email_entry->next = user_store->by_email[email_bucket];
-    user_store->by_email[email_bucket] = email_entry;
+    bool identity_found = false;
+    int64_t uid = 0;
+    if (!db_oauth_find_user(db, provider, provider_user_id, &identity_found, &uid)) {
+        (void)db_rollback(db);
+        return 0;
+    }
 
-    user_store->count++;
-    pthread_mutex_unlock(&user_store->u_lock);
-    return id;
+    if (identity_found && uid > 0) {
+        if (!db_commit(db)) {
+            (void)db_rollback(db);
+            return 0;
+        }
+        return (uint64_t)uid;
+    }
+
+    int found_by_email = 0;
+    int64_t uid_by_email = 0;
+    if (!oauth_find_user_id_by_email(db, email, &found_by_email, &uid_by_email)) {
+        (void)db_rollback(db);
+        return 0;
+    }
+
+    uint64_t final_uid = found_by_email ? (uint64_t)uid_by_email
+                                        : oauth_create_user_with_unique_username(db, email, username_seed);
+    if (final_uid == 0) {
+        (void)db_rollback(db);
+        return 0;
+    }
+
+    if (!db_oauth_upsert_link(db, provider, provider_user_id, (int64_t)final_uid)) {
+        (void)db_rollback(db);
+        return 0;
+    }
+
+    if (!db_commit(db)) {
+        (void)db_rollback(db);
+        return 0;
+    }
+
+    return final_uid;
 }

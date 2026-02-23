@@ -51,7 +51,7 @@ void add_connection(cxt_t* cxt, int listener, int is_ssl) {
 
         client_t *new_clients = realloc(cxt->clients, new_size * sizeof(client_t));
         if (!new_clients) { perror("realloc clients"); close(client_fd); pthread_mutex_unlock(&cxt->pfds_lock); return; }
-        size_t old = cxt->fdsize;
+        int old = cxt->fdsize;
         cxt->clients = new_clients;
         if (new_size > old) {
             memset(&cxt->clients[old], 0, (new_size - old) * sizeof(client_t));
@@ -130,7 +130,6 @@ void handle_client_read(cxt_t* cxt, int client_fd) {
         return;
     }
     char buf[MAX_REQUEST_SIZE];
-    client_t* c = &cxt->clients[idx];
     if (cxt->clients[idx].is_ssl == NOT_TLS) {
         pthread_mutex_unlock(&cxt->pfds_lock);
         bytes_recv = recv_message(client_fd, buf, MAX_REQUEST_SIZE - 1);

@@ -2,7 +2,10 @@
 #include <stdlib.h>
 #include <sys/poll.h>
 #include "worker.h"
+#include "db.h"
+#include "db_ctx.h"
 #include "http/response.h"
+#include "utils/str.h"
 
 void q_push(job_queue_t *q, job_t* j) {
     if (!q->tail) {
@@ -27,6 +30,13 @@ job_t* q_pop(job_queue_t *q) {
 
 void* process_jobs(void* arg) {
     cxt_t* cxt = (cxt_t*) arg;
+    PGconn* db = db_connect(must_getenv("DATABASE_URL"));
+    if (!db) DIE("db_connect failed");
+    if (!db_prepare_all(db)) {
+        db_disconnect(db);
+        DIE("db_prepare_all failed");
+    }
+    db_ctx_set(db);
     while (1) {
         pthread_mutex_lock(&cxt->q->lock);
         while (!cxt->q->tail)

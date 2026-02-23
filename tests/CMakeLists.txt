@@ -27,3 +27,8 @@ add_executable(test_oauth test_oauth.c)
 target_link_libraries(test_oauth PRIVATE myserver_lib)
 
 add_test(NAME oauth_test COMMAND test_oauth)
+
+add_executable(test_db test_db.c)
+target_link_libraries(test_db PRIVATE myserver_lib)
+
+add_test(NAME db_test COMMAND test_db)

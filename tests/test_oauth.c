@@ -1,6 +1,5 @@
 #include <openssl/evp.h>
 #include "auth/oauth.h"
-#include "auth/session.h"
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -91,7 +90,7 @@ static int test_extract_identity_valid(void) {
     int len = snprintf(payload, sizeof(payload),
         "{\"iss\":\"https://accounts.google.com\",\"aud\":\"client-123\","
         "\"nonce\":\"nonce-1\",\"exp\":%lld,\"email_verified\":true,"
-        "\"email\":\"a@example.com\",\"name\":\"Alice\"}",
+        "\"email\":\"a@example.com\",\"name\":\"Alice\",\"sub\":\"google-sub-1\"}",
         (long long)exp);
     ASSERT_TRUE(len > 0 && (size_t)len < sizeof(payload));
 
@@ -100,13 +99,17 @@ static int test_extract_identity_valid(void) {
 
     char *email = NULL;
     char *username_seed = NULL;
-    ASSERT_TRUE(oauth_extract_google_identity_from_id_token(&flow, jwt, &email, &username_seed) == 1);
+    char *provider_user_id = NULL;
+    ASSERT_TRUE(oauth_extract_google_identity_from_id_token(
+        &flow, jwt, &email, &username_seed, &provider_user_id) == 1);
     ASSERT_TRUE(strcmp(email, "a@example.com") == 0);
     ASSERT_TRUE(strcmp(username_seed, "Alice") == 0);
+    ASSERT_TRUE(strcmp(provider_user_id, "google-sub-1") == 0);
 
     free(jwt);
     free(email);
     free(username_seed);
+    free(provider_user_id);
     return 0;
 }
 
@@ -120,7 +123,7 @@ static int test_extract_identity_rejects_nonce_mismatch(void) {
     int len = snprintf(payload, sizeof(payload),
         "{\"iss\":\"accounts.google.com\",\"aud\":\"client-123\","
         "\"nonce\":\"nonce-other\",\"exp\":%lld,\"email_verified\":true,"
-        "\"email\":\"a@example.com\",\"name\":\"Alice\"}",
+        "\"email\":\"a@example.com\",\"name\":\"Alice\",\"sub\":\"google-sub-2\"}",
         (long long)exp);
     ASSERT_TRUE(len > 0 && (size_t)len < sizeof(payload));
 
@@ -129,9 +132,12 @@ static int test_extract_identity_rejects_nonce_mismatch(void) {
 
     char *email = NULL;
     char *username_seed = NULL;
-    ASSERT_TRUE(oauth_extract_google_identity_from_id_token(&flow, jwt, &email, &username_seed) == 0);
+    char *provider_user_id = NULL;
+    ASSERT_TRUE(oauth_extract_google_identity_from_id_token(
+        &flow, jwt, &email, &username_seed, &provider_user_id) == 0);
     ASSERT_TRUE(email == NULL);
     ASSERT_TRUE(username_seed == NULL);
+    ASSERT_TRUE(provider_user_id == NULL);
 
     free(jwt);
     return 0;
@@ -147,7 +153,7 @@ static int test_extract_identity_rejects_aud_mismatch(void) {
     int len = snprintf(payload, sizeof(payload),
         "{\"iss\":\"https://accounts.google.com\",\"aud\":\"wrong-client\","
         "\"nonce\":\"nonce-2\",\"exp\":%lld,\"email_verified\":true,"
-        "\"email\":\"a@example.com\"}",
+        "\"email\":\"a@example.com\",\"sub\":\"google-sub-3\"}",
         (long long)exp);
     ASSERT_TRUE(len > 0 && (size_t)len < sizeof(payload));
 
@@ -156,9 +162,12 @@ static int test_extract_identity_rejects_aud_mismatch(void) {
 
     char *email = NULL;
     char *username_seed = NULL;
-    ASSERT_TRUE(oauth_extract_google_identity_from_id_token(&flow, jwt, &email, &username_seed) == 0);
+    char *provider_user_id = NULL;
+    ASSERT_TRUE(oauth_extract_google_identity_from_id_token(
+        &flow, jwt, &email, &username_seed, &provider_user_id) == 0);
     ASSERT_TRUE(email == NULL);
     ASSERT_TRUE(username_seed == NULL);
+    ASSERT_TRUE(provider_user_id == NULL);
 
     free(jwt);
     return 0;
@@ -174,7 +183,7 @@ static int test_extract_identity_rejects_unverified_email(void) {
     int len = snprintf(payload, sizeof(payload),
         "{\"iss\":\"https://accounts.google.com\",\"aud\":\"client-123\","
         "\"nonce\":\"nonce-3\",\"exp\":%lld,\"email_verified\":false,"
-        "\"email\":\"a@example.com\"}",
+        "\"email\":\"a@example.com\",\"sub\":\"google-sub-4\"}",
         (long long)exp);
     ASSERT_TRUE(len > 0 && (size_t)len < sizeof(payload));
 
@@ -183,9 +192,12 @@ static int test_extract_identity_rejects_unverified_email(void) {
 
     char *email = NULL;
     char *username_seed = NULL;
-    ASSERT_TRUE(oauth_extract_google_identity_from_id_token(&flow, jwt, &email, &username_seed) == 0);
+    char *provider_user_id = NULL;
+    ASSERT_TRUE(oauth_extract_google_identity_from_id_token(
+        &flow, jwt, &email, &username_seed, &provider_user_id) == 0);
     ASSERT_TRUE(email == NULL);
     ASSERT_TRUE(username_seed == NULL);
+    ASSERT_TRUE(provider_user_id == NULL);
 
     free(jwt);
     return 0;
@@ -201,7 +213,7 @@ static int test_extract_identity_rejects_expired(void) {
     int len = snprintf(payload, sizeof(payload),
         "{\"iss\":\"https://accounts.google.com\",\"aud\":\"client-123\","
         "\"nonce\":\"nonce-4\",\"exp\":%lld,\"email_verified\":true,"
-        "\"email\":\"a@example.com\"}",
+        "\"email\":\"a@example.com\",\"sub\":\"google-sub-5\"}",
         (long long)exp);
     ASSERT_TRUE(len > 0 && (size_t)len < sizeof(payload));
 
@@ -210,64 +222,14 @@ static int test_extract_identity_rejects_expired(void) {
 
     char *email = NULL;
     char *username_seed = NULL;
-    ASSERT_TRUE(oauth_extract_google_identity_from_id_token(&flow, jwt, &email, &username_seed) == 0);
+    char *provider_user_id = NULL;
+    ASSERT_TRUE(oauth_extract_google_identity_from_id_token(
+        &flow, jwt, &email, &username_seed, &provider_user_id) == 0);
     ASSERT_TRUE(email == NULL);
     ASSERT_TRUE(username_seed == NULL);
+    ASSERT_TRUE(provider_user_id == NULL);
 
     free(jwt);
-    return 0;
-}
-
-static void free_entry_chain(u_entry_t *entry) {
-    while (entry) {
-        u_entry_t *next = entry->next;
-        free(entry);
-        entry = next;
-    }
-}
-
-static void reset_user_store(void) {
-    if (!user_store) return;
-
-    for (int i = 1; i <= user_store->count; ++i) {
-        free(user_store->users[i].username);
-        free(user_store->users[i].email);
-        free(user_store->users[i].password_hash);
-        user_store->users[i].username = NULL;
-        user_store->users[i].email = NULL;
-        user_store->users[i].password_hash = NULL;
-        user_store->users[i].id = 0;
-    }
-    for (size_t i = 0; i < MAX_USER_BUCKET; ++i) {
-        free_entry_chain(user_store->by_username[i]);
-        free_entry_chain(user_store->by_email[i]);
-        user_store->by_username[i] = NULL;
-        user_store->by_email[i] = NULL;
-    }
-    user_store->count = 0;
-}
-
-static int test_username_collision_suffixes(void) {
-    reset_user_store();
-
-    uint64_t uid1 = oauth_find_or_create_user("alice.one@example.com", "Alice");
-    uint64_t uid2 = oauth_find_or_create_user("alice.two@example.com", "Alice");
-    uint64_t uid3 = oauth_find_or_create_user("alice.three@example.com", "Alice");
-    uint64_t uid4 = oauth_find_or_create_user("bob.smith@example.com", NULL);
-    uint64_t uid1_again = oauth_find_or_create_user("alice.one@example.com", "Someone Else");
-
-    ASSERT_TRUE(uid1 > 0);
-    ASSERT_TRUE(uid2 > 0);
-    ASSERT_TRUE(uid3 > 0);
-    ASSERT_TRUE(uid4 > 0);
-    ASSERT_TRUE(uid1_again == uid1);
-
-    ASSERT_TRUE(strcmp(user_store->users[uid1].username, "alice") == 0);
-    ASSERT_TRUE(strcmp(user_store->users[uid2].username, "alice_2") == 0);
-    ASSERT_TRUE(strcmp(user_store->users[uid3].username, "alice_3") == 0);
-    ASSERT_TRUE(strcmp(user_store->users[uid4].username, "bob.smith") == 0);
-
-    reset_user_store();
     return 0;
 }
 
@@ -278,7 +240,6 @@ int main(void) {
     failures += test_extract_identity_rejects_aud_mismatch();
     failures += test_extract_identity_rejects_unverified_email();
     failures += test_extract_identity_rejects_expired();
-    failures += test_username_collision_suffixes();
 
     if (failures == 0) {
         printf("test_oauth passed!\n");

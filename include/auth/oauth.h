@@ -53,7 +53,9 @@ int oauth_build_authorize_url(const oauth_provider_t *p, const char *state,
                               const char *nonce, const char *code_challenge, char **out_url);
 int oauth_exchange_code_for_id_token(const oauth_flow_t *flow, const char *code, char **out_id_token);
 int oauth_extract_google_identity_from_id_token(const oauth_flow_t *flow, const char *id_token,
-                                                 char **out_email, char **out_username_seed);
-uint64_t oauth_find_or_create_user(const char *email, const char *username_seed);
+                                                 char **out_email, char **out_username_seed,
+                                                 char **out_provider_user_id);
+uint64_t oauth_find_or_create_user(const char *provider, const char *provider_user_id,
+                                   const char *email, const char *username_seed);
 
 #endif

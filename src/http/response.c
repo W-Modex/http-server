@@ -31,7 +31,8 @@ static int str_case_starts_with(const char *s, const char *prefix) {
 }
 
 static const char *render_value_for(const char *needle, http_request_t *req,
-                                    char *scratch, size_t scratch_len) {
+                                    char *scratch, size_t scratch_len,
+                                    char *username_buf, size_t username_buf_len) {
     if (!needle || !req) return "";
     if (strcmp(needle, CSRF_TOKEN_PLACEHOLDER) == 0) {
         if (req->session.created_at != 0 &&
@@ -45,12 +46,11 @@ static const char *render_value_for(const char *needle, http_request_t *req,
     }
     if (strcmp(needle, "{{USERNAME}}") == 0) {
         uint64_t uid = req->session.uid;
-        if (req->session.created_at == 0 || uid == 0 || !user_store) return "";
-        if (uid > (uint64_t)user_store->count) return "";
-
-        const user_t *user = &user_store->users[uid];
-        if (!user->username || !*user->username) return "";
-        return user->username;
+        if (req->session.created_at == 0 || uid == 0) return "";
+        if (!username_buf || username_buf_len == 0) return "";
+        username_buf[0] = '\0';
+        if (!get_username_by_id(uid, username_buf, username_buf_len)) return "";
+        return username_buf;
     }
     return "";
 }
@@ -171,9 +171,17 @@ int render_html(http_request_t *req, http_response_t *res) {
     }
 
     char scratch[CSRF_TOKEN_HEX_LEN + 1];
+    char username_buf[128];
     for (size_t i = 0; i < RENDER_NEEDLES_COUNT; ++i) {
         const char *needle = RENDER_NEEDLES[i];
-        const char *replacement = render_value_for(needle, req, scratch, sizeof(scratch));
+        const char *replacement = render_value_for(
+            needle,
+            req,
+            scratch,
+            sizeof(scratch),
+            username_buf,
+            sizeof(username_buf)
+        );
         if (!replace_in_response(res, needle, replacement)) return 0;
     }
     return 1;

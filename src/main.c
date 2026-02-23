@@ -14,6 +14,8 @@
 pthread_t workers[WORKER_COUNT];
 
 int main(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
     signal(SIGPIPE, SIG_IGN);
 
     int listener = get_listener_fd(must_getenv("HTTP_PORT"));

@@ -183,6 +183,7 @@ int google_oauth_callback(http_request_t* req, http_response_t* res) {
     char *id_token = NULL;
     char *email = NULL;
     char *username_seed = NULL;
+    char *provider_user_id = NULL;
     int ok = 0;
 
     if (!oauth_exchange_code_for_id_token(&flow, code, &id_token)) {
@@ -190,12 +191,17 @@ int google_oauth_callback(http_request_t* req, http_response_t* res) {
         goto cleanup;
     }
 
-    if (!oauth_extract_google_identity_from_id_token(&flow, id_token, &email, &username_seed)) {
+    if (!oauth_extract_google_identity_from_id_token(
+            &flow,
+            id_token,
+            &email,
+            &username_seed,
+            &provider_user_id)) {
         ok = response_set_redirect(res, 302, "/login");
         goto cleanup;
     }
     
-    uint64_t uid = oauth_find_or_create_user(email, username_seed);
+    uint64_t uid = oauth_find_or_create_user(flow.provider->name, provider_user_id, email, username_seed);
     if (uid == 0) {
         ok = response_set_error(res, 500, "Internal Server Error");
         goto cleanup;
@@ -219,5 +225,6 @@ cleanup:
     free(id_token);
     free(email);
     free(username_seed);
+    free(provider_user_id);
     return ok;
 }

@@ -21,8 +21,6 @@
 #define MAX_JOB_QUEUE     1024
 #define MAX_SESSION_BUCKET 4096
 #define MAX_SESSION_SIZE  1000000
-#define MAX_USER_BUCKET 4096
-#define MAX_USER_SIZE  100000
 
 static inline void DIE(const char *fmt, ...) {
     va_list args;
@@ -43,7 +41,7 @@ static inline void str_copy(char *dst, const char *src, size_t size) {
 }
 
 
-static const char* must_getenv(const char* name) {
+static inline const char* must_getenv(const char* name) {
     const char* v = getenv(name);
     if (!v || v[0] == '\0') {
         fprintf(stderr, "Missing required env var: %s\n", name);
@@ -52,14 +50,14 @@ static const char* must_getenv(const char* name) {
     return v;
 }
 
-static int hex_val(char c) {
+static inline int hex_val(char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
     if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
     return -1;
 }
 
-static int percent_decode(const char *src, char **out) {
+static inline int percent_decode(const char *src, char **out) {
     if (!src || !out) return -1;
     size_t len = strlen(src);
     char *dst = malloc(len + 1);
@@ -92,7 +90,7 @@ static int percent_decode(const char *src, char **out) {
     return 0;
 }
 
-static int percent_encode(const char *src, char **out) {
+static inline int percent_encode(const char *src, char **out) {
     if (!src || !out) return -1;
     size_t len = strlen(src);
     if (len > (SIZE_MAX - 1) / 3) return -1;
@@ -135,7 +133,7 @@ static inline void trim_inplace(char *s) {
     }
 }
 
-static int str_case_eq(const char *a, const char *b) {
+static inline int str_case_eq(const char *a, const char *b) {
     while (*a && *b) {
         if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) return 0;
         a++; b++;
@@ -152,11 +150,12 @@ static inline void clear_buffer(char *buf, size_t size) {
     memset(buf, 0, size);
 }
 
-static inline int endswith(char* str, char* t) {
-    int m = strlen(str);
-    int n = strlen(t);
-    if (strcmp(str+m-n, t) == 0) return 1;
-    else return 0;
+static inline int endswith(const char *str, const char *suffix) {
+    if (!str || !suffix) return 0;
+    size_t m = strlen(str);
+    size_t n = strlen(suffix);
+    if (n > m) return 0;
+    return strcmp(str + (m - n), suffix) == 0;
 }
 
 static inline int replace_all(const unsigned char *buf, size_t len,
