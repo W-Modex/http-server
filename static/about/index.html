@@ -3,10 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modex Server</title>
-    <link rel="stylesheet" href="/index.css">
+    <title>C HTTPS Server | About</title>
+    <meta name="description" content="Architecture and security model of the low-level C HTTPS server.">
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-    <div>Its about drive its about power</div>
+    <header class="site-header">
+        <div class="container nav-wrap">
+            <a class="brand" href="/">C HTTPS Server</a>
+            <nav aria-label="Primary navigation">
+                <ul class="nav-links">
+                    <li><a href="/">Home</a></li>
+                    <li><a class="active" aria-current="page" href="/about">About</a></li>
+                    <li><a href="/docs">Docs</a></li>
+                    <li><a href="/security">Security</a></li>
+                    <li><a href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub</a></li>
+                    {{AUTH_NAV_ITEMS}}
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="container">
+            <h1 class="section-title">About this project</h1>
+            <p class="muted">This is a low-level HTTPS web server built in C to learn how backend systems work under framework abstractions. It handles networking, HTTP/1.1 parsing, routing, security primitives, OAuth2 login, and PostgreSQL persistence with migrations in a Dockerized setup.</p>
+        </section>
+
+        <section class="container" id="architecture">
+            <h2 class="section-title">Architecture</h2>
+            <pre><code>Client
+  |
+  v
+TLS (OpenSSL)
+  |
+  v
+HTTP/1.1 Parse
+  |
+  v
+Router (method + path)
+  |
+  v
+Handler
+  |----> PostgreSQL (sessions/users/oauth)
+  |----> Static file + MIME
+  \----> Auth flows (sessions + CSRF + OAuth2)</code></pre>
+            <ul class="list muted" style="margin-top: 0.9rem;">
+                <li>Main loop uses <span class="inline-code">poll()</span> readiness events for active sockets.</li>
+                <li>Worker threads process queued request jobs from the event loop.</li>
+                <li>TLS uses OpenSSL for handshake, certificates, and encrypted transport.</li>
+                <li>Router dispatches by HTTP method and request path to handlers.</li>
+                <li>PostgreSQL stores users, sessions, and OAuth identity links.</li>
+                <li>Migrations run at startup in Dockerized environments.</li>
+            </ul>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Security model</h2>
+            <div class="grid security-grid">
+                <article class="card">
+                    <h3>Sessions</h3>
+                    <p>Session IDs are stored in secure cookies with flags such as <span class="inline-code">HttpOnly</span>, <span class="inline-code">Secure</span>, and <span class="inline-code">SameSite</span>, with expiry and rotation controls.</p>
+                </article>
+                <article class="card">
+                    <h3>CSRF</h3>
+                    <p>A token is derived per session and validated on state-changing requests before handlers run.</p>
+                </article>
+                <article class="card">
+                    <h3>OAuth2</h3>
+                    <p>Google authorization code flow includes state tracking/validation before exchanging callback codes.</p>
+                </article>
+                <article class="card">
+                    <h3>Static files</h3>
+                    <p>Path handling blocks traversal patterns and constrains static resolution to intended files.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Tradeoffs and scope</h2>
+            <ul class="list muted">
+                <li>Focuses on HTTP/1.1 rather than HTTP/2 or HTTP/3.</li>
+                <li>Prioritizes clarity and correctness over maximum throughput tuning.</li>
+                <li>Uses Docker for reproducible cross-platform local execution.</li>
+            </ul>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Next improvements</h2>
+            <ul class="list muted">
+                <li>Rate limiting and request IDs for traceability.</li>
+                <li>Structured logging for production-style debugging.</li>
+                <li>Benchmarks and profiling against workload targets.</li>
+                <li>Fuzz tests for request parser robustness.</li>
+                <li>Optional <span class="inline-code">epoll</span> backend for Linux-specific scaling.</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-wrap">
+            <p>Built in C • TLS via OpenSSL • Dockerized demo</p>
+            <a href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub</a>
+        </div>
+    </footer>
 </body>
 </html>

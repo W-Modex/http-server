@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C HTTPS Server | Docs</title>
+    <meta name="description" content="Run and configure the C HTTPS server.">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <header class="site-header">
+        <div class="container nav-wrap">
+            <a class="brand" href="/">C HTTPS Server</a>
+            <nav aria-label="Primary navigation">
+                <ul class="nav-links">
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li><a class="active" aria-current="page" href="/docs">Docs</a></li>
+                    <li><a href="/security">Security</a></li>
+                    <li><a href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub</a></li>
+                    {{AUTH_NAV_ITEMS}}
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="container">
+            <h1 class="section-title">Docs</h1>
+            <p class="muted">Quick setup and core configuration for local HTTPS testing.</p>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">How to run</h2>
+            <pre><code>git clone https://github.com/W-Modex/http-server
+cd http-server
+./devcerts.sh
+docker compose up --build</code></pre>
+            <p class="muted">Then open <span class="inline-code">https://localhost:3434</span> and accept the self-signed certificate warning.</p>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Configuration</h2>
+            <ul class="list muted">
+                <li><span class="inline-code">DATABASE_URL</span> (required)</li>
+                <li><span class="inline-code">TLS_CERT_FILE</span> (required)</li>
+                <li><span class="inline-code">TLS_KEY_FILE</span> (required)</li>
+                <li><span class="inline-code">OAUTH_GOOGLE_CLIENT_ID</span> (optional)</li>
+                <li><span class="inline-code">OAUTH_GOOGLE_CLIENT_SECRET</span> (optional)</li>
+                <li><span class="inline-code">OAUTH_GOOGLE_REDIRECT_URI</span> (optional)</li>
+            </ul>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Main routes</h2>
+            <div class="grid">
+                <article class="card"><h3><span class="inline-code">GET /login</span> and <span class="inline-code">POST /login</span></h3><p>Credential login form and authentication submit endpoint.</p></article>
+                <article class="card"><h3><span class="inline-code">POST /logout</span></h3><p>Session teardown endpoint with CSRF validation.</p></article>
+                <article class="card"><h3><span class="inline-code">GET /oauth/google/start</span> and <span class="inline-code">GET /oauth/google/callback</span></h3><p>OAuth2 authorization start and callback processing.</p></article>
+                <article class="card"><h3><span class="inline-code">GET /...</span> static assets</h3><p>Fallback static serving for files like <span class="inline-code">/styles.css</span> and content pages.</p></article>
+            </div>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Database</h2>
+            <p class="muted">PostgreSQL stores user/session/oauth data. SQL migrations from <span class="inline-code">src/db/migrations</span> are applied during Docker startup.</p>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-wrap">
+            <p>Built in C • TLS via OpenSSL • Dockerized demo</p>
+            <a href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub</a>
+        </div>
+    </footer>
+</body>
+</html>

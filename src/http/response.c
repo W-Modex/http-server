@@ -15,9 +15,63 @@ static const char *RENDER_NEEDLES[] = {
     CSRF_TOKEN_PLACEHOLDER,
     "{{IS_AUTH}}",
     "{{USERNAME}}",
+    "{{AUTH_NAV_ITEMS}}",
 };
 
 static const size_t RENDER_NEEDLES_COUNT = sizeof(RENDER_NEEDLES) / sizeof(RENDER_NEEDLES[0]);
+
+static const char *render_auth_nav_items(http_request_t *req,
+                                         char *out,
+                                         size_t out_len,
+                                         char *csrf_buf,
+                                         size_t csrf_buf_len) {
+    if (!req || !out || out_len == 0) return "";
+    out[0] = '\0';
+
+    if (session_is_authenticated(&req->session)) {
+        const char *token = "";
+        if (req->session.created_at != 0 &&
+            csrf_buf &&
+            csrf_buf_len > 0 &&
+            csrf_token_hex(&req->session, csrf_buf, csrf_buf_len)) {
+            token = csrf_buf;
+        }
+
+        int n = snprintf(
+            out,
+            out_len,
+            "<li class=\"nav-auth\"><form class=\"nav-auth-form\" action=\"/logout\" method=\"post\">"
+            "<input type=\"hidden\" name=\"csrf_token\" value=\"%s\">"
+            "<button class=\"btn nav-logout\" type=\"submit\">Logout</button></form></li>",
+            token
+        );
+        if (n < 0 || (size_t)n >= out_len) {
+            out[0] = '\0';
+        }
+        return out;
+    }
+
+    int login_active = req->path &&
+        (strcmp(req->path, "/login") == 0 ||
+         strcmp(req->path, "/login/") == 0 ||
+         strcmp(req->path, "/login/index.html") == 0);
+    int signup_active = req->path &&
+        (strcmp(req->path, "/signup") == 0 ||
+         strcmp(req->path, "/signup/") == 0 ||
+         strcmp(req->path, "/signup/index.html") == 0);
+    int n = snprintf(
+        out,
+        out_len,
+        "<li><a%s href=\"/login\">Login</a></li>"
+        "<li><a%s href=\"/signup\">Signup</a></li>",
+        login_active ? " class=\"active\" aria-current=\"page\"" : "",
+        signup_active ? " class=\"active\" aria-current=\"page\"" : ""
+    );
+    if (n < 0 || (size_t)n >= out_len) {
+        out[0] = '\0';
+    }
+    return out;
+}
 
 static int str_case_starts_with(const char *s, const char *prefix) {
     if (!s || !prefix) return 0;
@@ -32,7 +86,9 @@ static int str_case_starts_with(const char *s, const char *prefix) {
 
 static const char *render_value_for(const char *needle, http_request_t *req,
                                     char *scratch, size_t scratch_len,
-                                    char *username_buf, size_t username_buf_len) {
+                                    char *username_buf, size_t username_buf_len,
+                                    char *auth_nav_buf, size_t auth_nav_buf_len,
+                                    char *csrf_buf, size_t csrf_buf_len) {
     if (!needle || !req) return "";
     if (strcmp(needle, CSRF_TOKEN_PLACEHOLDER) == 0) {
         if (req->session.created_at != 0 &&
@@ -51,6 +107,9 @@ static const char *render_value_for(const char *needle, http_request_t *req,
         username_buf[0] = '\0';
         if (!get_username_by_id(uid, username_buf, username_buf_len)) return "";
         return username_buf;
+    }
+    if (strcmp(needle, "{{AUTH_NAV_ITEMS}}") == 0) {
+        return render_auth_nav_items(req, auth_nav_buf, auth_nav_buf_len, csrf_buf, csrf_buf_len);
     }
     return "";
 }
@@ -172,6 +231,8 @@ int render_html(http_request_t *req, http_response_t *res) {
 
     char scratch[CSRF_TOKEN_HEX_LEN + 1];
     char username_buf[128];
+    char auth_nav_buf[1024];
+    char csrf_buf[CSRF_TOKEN_HEX_LEN + 1];
     for (size_t i = 0; i < RENDER_NEEDLES_COUNT; ++i) {
         const char *needle = RENDER_NEEDLES[i];
         const char *replacement = render_value_for(
@@ -180,7 +241,11 @@ int render_html(http_request_t *req, http_response_t *res) {
             scratch,
             sizeof(scratch),
             username_buf,
-            sizeof(username_buf)
+            sizeof(username_buf),
+            auth_nav_buf,
+            sizeof(auth_nav_buf),
+            csrf_buf,
+            sizeof(csrf_buf)
         );
         if (!replace_in_response(res, needle, replacement)) return 0;
     }
@@ -370,6 +435,9 @@ int handle_response(http_request_t* req, http_payload_t* payload) {
         }
     }
     if (routed <= 0) return build_simple_error(500, "Internal Server Error", payload);
+
+    if (!render_html(req, &res)) return build_simple_error(500, "Internal Server Error", payload);
+    if (!csrf_maybe_inject(req, &res)) return build_simple_error(500, "Internal Server Error", payload);
 
     int ok = build_response(&res, payload);
 

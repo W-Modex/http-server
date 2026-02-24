@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C HTTPS Server | Security</title>
+    <meta name="description" content="Security model and limitations for the C HTTPS server demo.">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <header class="site-header">
+        <div class="container nav-wrap">
+            <a class="brand" href="/">C HTTPS Server</a>
+            <nav aria-label="Primary navigation">
+                <ul class="nav-links">
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li><a href="/docs">Docs</a></li>
+                    <li><a class="active" aria-current="page" href="/security">Security</a></li>
+                    <li><a href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub</a></li>
+                    {{AUTH_NAV_ITEMS}}
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="container">
+            <h1 class="section-title">Security notes</h1>
+            <p class="muted">This page summarizes practical threat coverage in the current implementation.</p>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Threats considered</h2>
+            <ul class="list muted">
+                <li>Cross-site request forgery on state-changing endpoints.</li>
+                <li>Session fixation and session token abuse risks.</li>
+                <li>OAuth callback replay or forged state values.</li>
+                <li>Path traversal attempts against static file serving.</li>
+            </ul>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Protections implemented</h2>
+            <div class="grid security-grid">
+                <article class="card">
+                    <h3>Cookie hardening</h3>
+                    <p>Session cookies use hardening flags including HttpOnly, Secure, and SameSite policies.</p>
+                </article>
+                <article class="card">
+                    <h3>CSRF tokens</h3>
+                    <p>State-changing requests are checked against per-session CSRF token values.</p>
+                </article>
+                <article class="card">
+                    <h3>OAuth state validation</h3>
+                    <p>Authorization flow state is stored and validated before code exchange completes.</p>
+                </article>
+                <article class="card">
+                    <h3>Safe static paths</h3>
+                    <p>Path normalization rejects traversal patterns and constrains file lookup behavior.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Known limitations</h2>
+            <ul class="list muted">
+                <li>This is an educational/demo server, not a completed production hardening profile.</li>
+                <li>Development certificates are self-signed for local HTTPS testing.</li>
+                <li>No formal third-party security audit has been performed.</li>
+                <li>Additional controls like rate limiting and deeper observability are still planned.</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-wrap">
+            <p>Built in C • TLS via OpenSSL • Dockerized demo</p>
+            <a href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub</a>
+        </div>
+    </footer>
+</body>
+</html>

@@ -8,9 +8,39 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int html_route_alias_match(const char *pattern, const char *path) {
+    if (!pattern || !path) return 0;
+    if (strcmp(pattern, path) == 0) return 1;
+
+    if (strcmp(pattern, "/") == 0) {
+        return strcmp(path, "/index.html") == 0;
+    }
+
+    size_t plen = strlen(pattern);
+    size_t path_len = strlen(path);
+    if (plen == 0) return 0;
+
+    if (path_len == plen + 1 &&
+        strncmp(path, pattern, plen) == 0 &&
+        path[plen] == '/') {
+        return 1;
+    }
+
+    static const char suffix[] = "/index.html";
+    size_t suffix_len = sizeof(suffix) - 1;
+    if (path_len == plen + suffix_len &&
+        strncmp(path, pattern, plen) == 0 &&
+        strcmp(path + plen, suffix) == 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
 const route_t ROUTES[] = {
-    {HTTP_GET, "/", ENSURE_SESSION | RENDER_HTML, static_get}, 
-    {HTTP_GET, "/chat", AUTH_REQUIRED | RENDER_HTML, static_get}, 
+    {HTTP_GET, "/", ENSURE_SESSION | RENDER_HTML, static_get},
+    {HTTP_GET, "/docs", AUTH_REQUIRED | RENDER_HTML, static_get},
+    {HTTP_GET, "/security", AUTH_REQUIRED | RENDER_HTML, static_get},
     {HTTP_GET, "/about", AUTH_REQUIRED | RENDER_HTML, static_get},
     {HTTP_GET, "/login", ANON_ONLY | ENSURE_SESSION | RENDER_HTML, static_get},
     {HTTP_POST, "/login", ANON_ONLY | CSRF_REQUIRED, post_login},
@@ -24,9 +54,16 @@ const route_t ROUTES[] = {
 const size_t ROUTES_COUNT = sizeof(ROUTES)/sizeof(ROUTES[0]);
 
 const route_t* router_find(http_method_t method, const char *path) {
+    if (!path) return NULL;
     for (size_t i = 0; i < ROUTES_COUNT; i++) {
-        if (ROUTES[i].method == method && strcmp(ROUTES[i].pattern, path) == 0)
+        if (ROUTES[i].method != method) continue;
+        if (strcmp(ROUTES[i].pattern, path) == 0)
             return &ROUTES[i];
+        if (method == HTTP_GET &&
+            (ROUTES[i].flags & RENDER_HTML) &&
+            html_route_alias_match(ROUTES[i].pattern, path)) {
+            return &ROUTES[i];
+        }
     }
     return NULL;
 }

@@ -1,55 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Modex HTTP Lab</title>
-    <link rel="stylesheet" href="index.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C HTTPS Server | Home</title>
+    <meta name="description" content="Low-level HTTPS web server in C with HTTP parsing, poll event loop, OpenSSL TLS, sessions, CSRF, OAuth2, PostgreSQL, and Docker.">
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
     <header class="site-header">
-        <div class="container header-inner">
-            <a class="brand" href="/">
-                <span class="brand-mark" aria-hidden="true">MH</span>
-                <span class="brand-name">Modex HTTP Lab</span>
-            </a>
-            <nav class="nav" aria-label="Primary">
-                <form action="/logout" method="post">
-                    <input type="hidden" name="csrf_token" value="{{CSRF_TOKEN}}">
-                    <button class="btn btn--primary" type="submit">{{IS_AUTH}}</button>
-                </form>
+        <div class="container nav-wrap">
+            <a class="brand" href="/">C HTTPS Server</a>
+            <nav aria-label="Primary navigation">
+                <ul class="nav-links">
+                    <li><a class="active" aria-current="page" href="/">Home</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li><a href="/docs">Docs</a></li>
+                    <li><a href="/security">Security</a></li>
+                    <li><a href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub</a></li>
+                    {{AUTH_NAV_ITEMS}}
+                </ul>
             </nav>
         </div>
     </header>
 
-    <main class="main">
-        <section class="hero container">
-            <div class="hero-copy">
-                <p class="eyebrow">WELCOME {{USERNAME}}</p>
-                <h1 class="hero-title">Learn the request lifecycle end-to-end.</h1>
-                <p class="hero-text">
-                    A clean playground for sockets, routing, and parsing. Understand how each
-                    request moves through the stack with no distractions.
-                </p>
-                <div class="hero-actions">
-                    <a class="btn btn--primary" href="/chat">Chat</a>
-                    <a class="btn btn--ghost" href="/about">About</a>
-                </div>
+    <main>
+        <section class="container hero">
+            <span class="badge">From scratch in C</span>
+            <h1>Low-level HTTPS Web Server in C (from scratch)</h1>
+            <p class="lead">HTTP/1.1 parsing • poll() event loop + worker pool • TLS (OpenSSL) • sessions + CSRF • Google OAuth2 • PostgreSQL + migrations • Dockerized</p>
+            <div class="actions">
+                <a class="btn primary" href="/about#architecture">View Architecture</a>
+                <a class="btn" href="#quickstart">Run with Docker</a>
+                <a class="muted" href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub Repo</a>
             </div>
-            <div class="card hero-card" aria-hidden="true">
-                <p class="card-title">Built for clarity</p>
-                <ul class="card-list">
-                    <li>HTTP/1.1 request flow</li>
-                    <li>Header and body parsing</li>
-                    <li>Session-ready auth routes</li>
-                </ul>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Why this exists</h2>
+            <ul class="list muted">
+                <li>Understand web backends under the hood without framework abstractions.</li>
+                <li>Implement security primitives directly: sessions/cookies, CSRF, and OAuth2 state handling.</li>
+                <li>Ship a portable demo with Docker Compose, PostgreSQL, and automatic migrations.</li>
+            </ul>
+        </section>
+
+        <section class="container">
+            <h2 class="section-title">Feature overview</h2>
+            <div class="grid feature-grid">
+                <article class="card">
+                    <h3>HTTP/1.1 parser</h3>
+                    <p>Request line, headers, query/body extraction, and typed method handling.</p>
+                </article>
+                <article class="card">
+                    <h3>Routing (method + path)</h3>
+                    <p>Explicit route table dispatching handlers by HTTP method and URL path.</p>
+                </article>
+                <article class="card">
+                    <h3>poll() event loop</h3>
+                    <p>Non-blocking readiness loop for accept/read/write connection handling.</p>
+                </article>
+                <article class="card">
+                    <h3>Worker thread pool</h3>
+                    <p>Queued request jobs processed concurrently by pthread worker threads.</p>
+                </article>
+                <article class="card">
+                    <h3>TLS termination (OpenSSL)</h3>
+                    <p>TLS handshake, certificate loading, and encrypted transport via OpenSSL.</p>
+                </article>
+                <article class="card">
+                    <h3>Static files + MIME</h3>
+                    <p>Path resolution, safe file reads, and content type selection for assets.</p>
+                </article>
+                <article class="card">
+                    <h3>Sessions (secure cookies)</h3>
+                    <p>Server-side session store with cookie flags and session lifecycle controls.</p>
+                </article>
+                <article class="card">
+                    <h3>CSRF protection</h3>
+                    <p>Per-session token generation and verification for state-changing requests.</p>
+                </article>
+                <article class="card">
+                    <h3>Google OAuth2</h3>
+                    <p>Authorization code flow with state management and callback processing.</p>
+                </article>
+                <article class="card">
+                    <h3>PostgreSQL + migrations</h3>
+                    <p>Persistent auth/session data with SQL migrations applied in Docker startup.</p>
+                </article>
             </div>
+        </section>
+
+        <section class="container" id="quickstart">
+            <h2 class="section-title">Quick demo</h2>
+            <pre><code>git clone https://github.com/W-Modex/http-server
+cd http-server
+./devcerts.sh
+docker compose up --build</code></pre>
+            <p class="muted">Open <span class="inline-code">https://localhost:3434</span> and accept the self-signed certificate warning.</p>
         </section>
     </main>
 
     <footer class="site-footer">
-        <div class="container">
-            <p class="muted">Built for learning and experimentation.</p>
+        <div class="container footer-wrap">
+            <p>Built in C • TLS via OpenSSL • Dockerized demo</p>
+            <a href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub</a>
         </div>
     </footer>
 </body>

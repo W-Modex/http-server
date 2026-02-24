@@ -1,45 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login | Modex HTTP Lab</title>
-    <link rel="stylesheet" href="login/index.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C HTTPS Server | Login</title>
+    <meta name="description" content="Login to the C HTTPS Server demo.">
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-    <main class="auth-wrap">
-        <section class="card auth-card">
-            <header class="auth-header">
-                <a class="brand brand--small" href="/">
-                    <span class="brand-mark" aria-hidden="true">MH</span>
-                    <span class="brand-name">Modex HTTP Lab</span>
-                </a>
-                <h1 class="auth-title">Login</h1>
-                <p class="muted">Welcome back. Enter your details to continue.</p>
-            </header>
-            <form class="form" method="post" action="/login">
-                <div class="field">
-                    <label class="label" for="id">Email or Username</label>
-                    <input class="input" type="text" id="email" name="id" autocomplete="email" required />
-                </div>
-                <div class="field">
-                    <label class="label" for="password">Password</label>
-                    <input class="input" type="password" id="password" name="password" autocomplete="current-password" required />
-                </div>
-                <input type="hidden" name="csrf_token" value="{{CSRF_TOKEN}}">
-                <p class="form-msg" role="status" aria-live="polite">Form feedback appears here.</p>
-                <button class="btn btn--primary" type="submit">Login</button>
-            </form>
-            <form class="form" action="/oauth/google/start" method="get">
-                <button class="btn btn--google flex" type="submit">
-                    <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="25" height="25" viewBox="0 0 48 48">
-                        <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path>
-                    </svg>
-                    <p>Continue with Google</p>
-                </button>
-            </form>
-            <p class="switch muted">Don't have an account? <a class="link" href="/signup">Sign up</a></p>
+    <header class="site-header">
+        <div class="container nav-wrap">
+            <a class="brand" href="/">C HTTPS Server</a>
+            <nav aria-label="Primary navigation">
+                <ul class="nav-links">
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li><a href="/docs">Docs</a></li>
+                    <li><a href="/security">Security</a></li>
+                    <li><a href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub</a></li>
+                    {{AUTH_NAV_ITEMS}}
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="container auth-shell">
+            <article class="card auth-card">
+                <h1 class="section-title">Login</h1>
+                <p class="muted">Sign in with local credentials or Google OAuth2.</p>
+
+                <form class="auth-form" method="post" action="/login">
+                    <label for="id">Email or Username</label>
+                    <input id="id" name="id" type="text" autocomplete="email" required>
+
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+                    <input type="hidden" name="csrf_token" value="{{CSRF_TOKEN}}">
+                    <button class="btn primary" type="submit">Login</button>
+                </form>
+
+                <form class="auth-form auth-oauth" method="get" action="/oauth/google/start">
+                    <button class="btn google-btn" type="submit">
+                        <svg class="google-icon" viewBox="0 0 48 48" width="20" height="20" aria-hidden="true" focusable="false">
+                            <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303A11.995 11.995 0 0 1 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657A19.93 19.93 0 0 0 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                            <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819A11.969 11.969 0 0 1 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657A19.93 19.93 0 0 0 24 4C16.318 4 9.656 8.337 6.306 14.691z"/>
+                            <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.93 11.93 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+                            <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.06 12.06 0 0 1-4.087 5.571l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+                        </svg>
+                        <span>Continue with Google</span>
+                    </button>
+                </form>
+
+                <p class="muted auth-switch">No account yet? <a href="/signup">Create one</a>.</p>
+            </article>
         </section>
     </main>
+
+    <footer class="site-footer">
+        <div class="container footer-wrap">
+            <p>Built in C • TLS via OpenSSL • Dockerized demo</p>
+            <a href="https://github.com/W-Modex/http-server" target="_blank" rel="noreferrer">GitHub</a>
+        </div>
+    </footer>
 </body>
 </html>
