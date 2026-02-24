@@ -34,4 +34,4 @@ COPY docker/entrypoint.sh /entrypoint.sh
 RUN dos2unix /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 3434
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["bash","-lc","tr -d '\\r' < /entrypoint.sh > /tmp/entrypoint.sh && chmod +x /tmp/entrypoint.sh && exec /tmp/entrypoint.sh"]
