@@ -24,13 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     postgresql-client \
     curl \
+    dos2unix \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 COPY --from=build /src /src
 
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
+RUN dos2unix /entrypoint.sh && chmod +x /entrypoint.sh
 
 EXPOSE 3434
 ENTRYPOINT ["/entrypoint.sh"]
