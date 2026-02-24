@@ -2,7 +2,9 @@
 set -euo pipefail
 
 set -a
-[ -f /src/.env ] && source /src/.env
+if [ -f /src/.env ]; then
+  source <(tr -d '\r' < /src/.env)
+fi
 set +a
 
 : "${DATABASE_URL:?DATABASE_URL must be set}"
