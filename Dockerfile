@@ -14,24 +14,26 @@ COPY . .
 RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
  && cmake --build build
 
-
 # ---- runtime stage ----
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash ca-certificates \
+    bash \
+    ca-certificates \
     libssl3 \
     libpq5 \
     postgresql-client \
-    curl \
-    dos2unix \
+    openssl \
  && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /src
-COPY --from=build /src /src
+WORKDIR /app
+
+COPY --from=build /src/build /app/build
+COPY --from=build /src/src /app/src
 
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN dos2unix /entrypoint.sh && chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 3434
-ENTRYPOINT ["bash","-lc","tr -d '\\r' < /entrypoint.sh > /tmp/entrypoint.sh && chmod +x /tmp/entrypoint.sh && exec /tmp/entrypoint.sh"]
+
+ENTRYPOINT ["/entrypoint.sh"]

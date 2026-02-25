@@ -17,8 +17,7 @@ services:
     ports:
       - "3434:3434"
     volumes:
-      - ./.env:/src/.env:ro
-      - ./certs:/src/certs:ro
+      - ./.env:/app/.env:ro
 
 volumes:
   pgdata:

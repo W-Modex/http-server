@@ -2,20 +2,19 @@
 set -euo pipefail
 
 set -a
-if [ -f /src/.env ]; then
-  source <(tr -d '\r' < /src/.env)
+if [ -f /app/.env ]; then
+  source <(tr -d '\r' < /app/.env)
 fi
 set +a
 
 : "${DATABASE_URL:?DATABASE_URL must be set}"
 
-CERT_DIR="/src/certs"
+CERT_DIR="/app/certs"
 CERT_KEY="$CERT_DIR/dev-key.pem"
 CERT_CERT="$CERT_DIR/dev-cert.pem"
 
 mkdir -p "$CERT_DIR"
 
-# Generate self-signed cert if missing
 if [ ! -f "$CERT_KEY" ] || [ ! -f "$CERT_CERT" ]; then
   echo "Generating self-signed HTTPS certificate..."
   openssl req -x509 -newkey rsa:2048 -sha256 -days 365 -nodes \
@@ -25,12 +24,11 @@ if [ ! -f "$CERT_KEY" ] || [ ! -f "$CERT_CERT" ]; then
   echo "Certificate generated."
 fi
 
-# Wait for DB
 until psql "$DATABASE_URL" -c "SELECT 1" >/dev/null 2>&1; do
   echo "Waiting for database..."
   sleep 1
 done
 
-./src/db/migrate.sh
+/app/src/db/migrate.sh
 
-exec ./build/server
+exec /app/build/server
