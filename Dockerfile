@@ -1,4 +1,4 @@
-# ---- build stage ----
+# -------- BUILD STAGE --------
 FROM debian:bookworm-slim AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -8,13 +8,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /src
+WORKDIR /app
 COPY . .
 
 RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
  && cmake --build build
 
-# ---- runtime stage ----
+
+# -------- RUNTIME STAGE --------
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -28,8 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY --from=build /src/build /app/build
-COPY --from=build /src/src /app/src
+COPY --from=build /app/build /app/build
+COPY --from=build /app/src /app/src
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
