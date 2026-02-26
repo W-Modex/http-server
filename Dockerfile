@@ -31,6 +31,7 @@ WORKDIR /app
 
 COPY --from=build /app/build /app/build
 COPY --from=build /app/src /app/src
+COPY --from=build /app/static /app/static
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

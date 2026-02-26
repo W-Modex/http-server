@@ -42,18 +42,10 @@ This is the easiest way to run the server on Linux, Windows, or macOS.
 
 ### 1. Clone project
 
-```bash
+```
 git clone https://github.com/W-Modex/http-server
 cd http-server
 ```
-
-### 2. Generate development TLS certificates
-
-```
-./devcert.sh
-```
-
-Creates self-signed certificates for local HTTPS.
 
 ### 3. Configure environment
 
