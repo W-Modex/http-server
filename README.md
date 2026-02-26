@@ -47,7 +47,7 @@ git clone https://github.com/W-Modex/http-server
 cd http-server
 ```
 
-### 3. Configure environment
+### 2. Configure environment
 
 ```
 cp .env.example .env
@@ -60,13 +60,13 @@ Edit `.env` if needed:
 
 Default configuration works out of the box with Docker.
 
-### 4. Run server
+### 3. Run server
 
 ```
 docker compose up --build
 ```
 
-### 5. Open in browser
+### 4. Open in browser
 
 `https://localhost:3434`
 
